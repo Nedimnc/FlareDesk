@@ -45,6 +45,8 @@ describe('Ticket threads and responses', () => {
       .send({ body: 'We are reviewing your account now.', is_internal: false });
     expect(res.status).toBe(201);
     expect(res.body.response.body).toBeTruthy();
+    expect(res.body.response.delivery_status).toBe('logged');
+    expect(res.body.delivery.provider).toBe('local');
     expect(res.body.ticket.response_count).toBe(1);
   });
 

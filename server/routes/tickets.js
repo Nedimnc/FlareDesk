@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../services/database');
 const { sanitizeResponseInput } = require('../middleware/sanitize');
+const { sendTicketReply } = require('../services/emailDelivery');
 
 const router = express.Router({ mergeParams: true });
 
@@ -52,16 +53,32 @@ router.post('/:id/responses', async (req, res, next) => {
     }
 
     const author = req.body.author || 'Support Agent';
+    const delivery = parsed.data.is_internal
+      ? { status: 'logged', provider: 'internal', detail: 'Internal note stored.' }
+      : await sendTicketReply({ ticket, body: parsed.data.body, author });
+
     const response = db.insertResponse(id, {
       author,
       author_type: parsed.data.is_internal ? 'agent' : 'agent',
       body: parsed.data.body,
       is_internal: parsed.data.is_internal,
-      delivery_status: parsed.data.is_internal ? 'logged' : 'sent',
+      delivery_status: delivery.status,
+      provider_message_id: delivery.messageId,
+      in_reply_to: ticket.message_id,
+      email_references: ticket.email_references,
     });
 
     const updatedTicket = db.getEmailById(id);
-    res.status(201).json({ response, ticket: updatedTicket });
+    if (delivery.status === 'failed') {
+      return res.status(502).json({
+        error: 'Reply saved, but outbound email delivery failed',
+        response,
+        ticket: updatedTicket,
+        delivery,
+      });
+    }
+
+    res.status(201).json({ response, ticket: updatedTicket, delivery });
   } catch (err) {
     next(err);
   }

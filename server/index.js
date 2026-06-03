@@ -11,6 +11,7 @@ const dashboardRouter = require('./routes/dashboard');
 const ticketsRouter = require('./routes/tickets');
 const webhooksRouter = require('./routes/webhooks');
 const db = require('./services/database');
+const { isEmailDeliveryConfigured } = require('./services/emailDelivery');
 
 // TODO: Replace /api/config open endpoint with proper session auth (OAuth or JWT)
 // Webhook ingest: POST /api/webhooks/inbound-email (see ARCHITECTURE.md)
@@ -56,6 +57,7 @@ app.use(
 );
 
 app.use(express.json({ limit: '50kb' }));
+app.use(express.urlencoded({ extended: false, limit: '100kb' }));
 app.use(express.static(path.join(__dirname, '../public')));
 
 app.get('/', (req, res) => {
@@ -64,7 +66,10 @@ app.get('/', (req, res) => {
 
 // Demo-only: exposes API key to the browser dashboard. Remove in production.
 app.get('/api/config', (req, res) => {
-  res.json({ apiKey: process.env.FLAREDESK_API_KEY });
+  res.json({
+    apiKey: process.env.FLAREDESK_API_KEY,
+    emailDeliveryMode: isEmailDeliveryConfigured() ? 'mailgun' : 'local',
+  });
 });
 
 app.use('/api', apiLimiter);

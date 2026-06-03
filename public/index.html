@@ -109,7 +109,7 @@
     <div class="main">
       <div class="topbar" id="topbar"></div>
       <div class="content">
-        <div class="banner">Each inbound email is a <strong>ticket</strong> (ID like FD-2026-0001) with a full conversation thread, agent replies, internal notes, and activity log. <strong>Email auto-ingest</strong> via webhook is ready at <code>POST /api/webhooks/inbound-email</code> — connect Mailgun, SendGrid, or Gmail later.</div>
+        <div class="banner" id="deliveryBanner">Each inbound email is a <strong>ticket</strong> (ID like FD-2026-0001) with a full conversation thread, agent replies, internal notes, and activity log. <strong>Email auto-ingest</strong> is available at <code>POST /api/webhooks/inbound-email</code>.</div>
         <div class="submit-panel">
           <button type="button" class="submit-toggle" id="submitToggle">+ Simulate inbound email (manual / pre-integration)</button>
           <form class="submit-form" id="submitForm">
@@ -165,7 +165,7 @@
     </div>
   </aside>
   <script>
-    let apiKey='', emails=[], thread=null, selectedId=null, highlightId=null;
+    let apiKey='', emailDeliveryMode='local', emails=[], thread=null, selectedId=null, highlightId=null;
     let sortField='distress_score', sortAsc=false, replyInternal=false, activeTab='conversation';
     const $=id=>document.getElementById(id);
     async function api(path,opt={}){const r=await fetch(path,{...opt,headers:{Authorization:'Bearer '+apiKey,...(opt.headers||{})}});if(!r.ok)throw new Error(r.status);if(r.status===204)return null;return r.json()}
@@ -192,8 +192,8 @@
       $('detailSubject').textContent=unesc(t.subject);
       $('detailMeta').innerHTML=esc(unesc(t.sender))+' · '+badge('prio-'+t.priority,t.priority)+' · '+badge('tone-'+t.tone_label,t.tone_label)+' · Risk: '+t.escalation_risk;
       $('statusSelect').value=t.status;
-      const msgs=[{type:'inbound',author:t.sender,time:t.received_at,body:t.body,label:'Original inbound email'},...thread.responses.map(r=>({type:r.is_internal?'internal':'outbound',author:r.author,time:r.created_at,body:r.body,label:r.is_internal?'Internal note':'Agent reply'}))];
-      $('tabConversation').innerHTML='<p style="font-size:.8rem;color:var(--muted);margin-bottom:.5rem">'+esc(t.summary||'')+'</p>'+msgs.map(m=>'<div class="thread-msg '+m.type+'"><div class="thread-meta">'+m.label+' · '+esc(m.author)+' · '+new Date(m.time).toLocaleString()+'</div><div class="thread-text">'+esc(unesc(m.body))+'</div></div>').join('');
+      const msgs=[{type:'inbound',author:t.sender,time:t.received_at,body:t.body,label:'Original inbound email',status:'received'},...thread.responses.map(r=>({type:r.is_internal?'internal':r.author_type==='customer'?'inbound':'outbound',author:r.author,time:r.created_at,body:r.body,label:r.is_internal?'Internal note':r.author_type==='customer'?'Customer reply':'Agent reply',status:r.delivery_status}))];
+      $('tabConversation').innerHTML='<p style="font-size:.8rem;color:var(--muted);margin-bottom:.5rem">'+esc(t.summary||'')+'</p>'+msgs.map(m=>'<div class="thread-msg '+m.type+'"><div class="thread-meta">'+m.label+' · '+esc(m.author)+' · '+new Date(m.time).toLocaleString()+' · '+m.status+'</div><div class="thread-text">'+esc(unesc(m.body))+'</div></div>').join('');
       $('tabActivity').innerHTML=thread.events.slice().reverse().map(ev=>'<div class="event-item"><strong>'+ev.event_type+'</strong> — '+(ev.detail||'')+' <span style="opacity:.7">('+new Date(ev.created_at).toLocaleString()+')</span></div>').join('')}
     async function openDetail(id){selectedId=id;thread=await api('/api/emails/'+id+'/thread');renderThread();$('detailPanel').classList.add('open');$('overlay').classList.add('show');renderTable();
       if(thread.ticket.status==='Closed')$('replyBox').classList.add('hidden');else $('replyBox').classList.remove('hidden')}
@@ -216,7 +216,9 @@
         highlightId=c.id;$('submitForm').reset();await loadEmails();await loadDashboard();setTimeout(()=>highlightId=null,2000)}catch(e){alert('Failed')}finally{btn.disabled=false;btn.textContent='Create ticket + analyze'}};
     ['filterStatus','filterPriority','filterTone'].forEach(id=>$(id).onchange=renderTable);
     document.querySelectorAll('th[data-sort]').forEach(th=>th.onclick=()=>{const f=th.dataset.sort;if(sortField===f)sortAsc=!sortAsc;else{sortField=f;sortAsc=false}renderTable()});
-    async function init(){const cfg=await fetch('/api/config').then(r=>r.json());apiKey=cfg.apiKey;await loadDashboard();await loadEmails();setInterval(loadEmails,30000)}
+    async function init(){const cfg=await fetch('/api/config').then(r=>r.json());apiKey=cfg.apiKey;emailDeliveryMode=cfg.emailDeliveryMode||'local';
+      $('deliveryBanner').innerHTML+=' <strong>Outbound:</strong> '+(emailDeliveryMode==='mailgun'?'Mailgun delivery is configured.':'local demo mode stores replies and generates threadable message IDs until Mailgun keys are added.');
+      await loadDashboard();await loadEmails();setInterval(loadEmails,30000)}
     init().catch(()=>$('emailTable').innerHTML='<tr><td colspan="8">API connection failed</td></tr>');
   </script>
 </body>

@@ -23,6 +23,9 @@ function initSchema(database) {
       sender TEXT NOT NULL,
       subject TEXT NOT NULL,
       body TEXT NOT NULL,
+      message_id TEXT,
+      in_reply_to TEXT,
+      email_references TEXT,
       tone_label TEXT,
       distress_score INTEGER,
       priority TEXT,
@@ -46,6 +49,9 @@ function initSchema(database) {
       body TEXT NOT NULL,
       is_internal INTEGER NOT NULL DEFAULT 0,
       delivery_status TEXT DEFAULT 'sent',
+      provider_message_id TEXT,
+      in_reply_to TEXT,
+      email_references TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (email_id) REFERENCES emails(id) ON DELETE CASCADE
     );
@@ -62,25 +68,49 @@ function initSchema(database) {
 
     CREATE INDEX IF NOT EXISTS idx_responses_email ON ticket_responses(email_id);
     CREATE INDEX IF NOT EXISTS idx_events_email ON ticket_events(email_id);
+    CREATE INDEX IF NOT EXISTS idx_emails_message_id ON emails(message_id);
+    CREATE INDEX IF NOT EXISTS idx_responses_provider_message_id ON ticket_responses(provider_message_id);
   `);
 }
 
 function migrateSchema(database) {
-  const cols = new Set(
+  const emailCols = new Set(
     database.prepare('PRAGMA table_info(emails)').all().map((c) => c.name)
   );
-  const migrations = [
+  const emailMigrations = [
     ['ticket_number', 'TEXT'],
     ['channel', "TEXT DEFAULT 'manual'"],
     ['closed_at', 'DATETIME'],
     ['last_response_at', 'DATETIME'],
     ['response_count', 'INTEGER DEFAULT 0'],
+    ['message_id', 'TEXT'],
+    ['in_reply_to', 'TEXT'],
+    ['email_references', 'TEXT'],
   ];
-  for (const [name, def] of migrations) {
-    if (!cols.has(name)) {
+  for (const [name, def] of emailMigrations) {
+    if (!emailCols.has(name)) {
       database.exec(`ALTER TABLE emails ADD COLUMN ${name} ${def}`);
     }
   }
+
+  const responseCols = new Set(
+    database.prepare('PRAGMA table_info(ticket_responses)').all().map((c) => c.name)
+  );
+  const responseMigrations = [
+    ['provider_message_id', 'TEXT'],
+    ['in_reply_to', 'TEXT'],
+    ['email_references', 'TEXT'],
+  ];
+  for (const [name, def] of responseMigrations) {
+    if (!responseCols.has(name)) {
+      database.exec(`ALTER TABLE ticket_responses ADD COLUMN ${name} ${def}`);
+    }
+  }
+
+  database.exec(`
+    CREATE INDEX IF NOT EXISTS idx_emails_message_id ON emails(message_id);
+    CREATE INDEX IF NOT EXISTS idx_responses_provider_message_id ON ticket_responses(provider_message_id);
+  `);
 }
 
 function generateTicketNumber(id) {
@@ -108,15 +138,18 @@ function insertEmail(row) {
     INSERT INTO emails (
       sender, subject, body, tone_label, distress_score, priority,
       summary, escalation_risk, assigned_to, status, channel,
-      received_at, analyzed_at
+      received_at, analyzed_at, message_id, in_reply_to, email_references
     ) VALUES (
       @sender, @subject, @body, @tone_label, @distress_score, @priority,
       @summary, @escalation_risk, @assigned_to, @status, @channel,
-      @received_at, @analyzed_at
+      @received_at, @analyzed_at, @message_id, @in_reply_to, @email_references
     )
   `);
   const result = stmt.run({
     channel: 'manual',
+    message_id: null,
+    in_reply_to: null,
+    email_references: null,
     ...row,
   });
   const id = result.lastInsertRowid;
@@ -131,6 +164,47 @@ function insertEmail(row) {
 
 function getEmailById(id) {
   return getDb().prepare('SELECT * FROM emails WHERE id = ?').get(id);
+}
+
+function getEmailByMessageId(messageId) {
+  if (!messageId) return null;
+  return getDb().prepare('SELECT * FROM emails WHERE message_id = ?').get(messageId);
+}
+
+function getResponseByProviderMessageId(messageId) {
+  if (!messageId) return null;
+  return getDb()
+    .prepare('SELECT * FROM ticket_responses WHERE provider_message_id = ?')
+    .get(messageId);
+}
+
+function getTicketByResponseMessageId(messageId) {
+  if (!messageId) return null;
+  return getDb()
+    .prepare(
+      `SELECT e.* FROM emails e
+       JOIN ticket_responses r ON r.email_id = e.id
+       WHERE r.provider_message_id = ?
+       LIMIT 1`
+    )
+    .get(messageId);
+}
+
+function findTicketByMessageHeaders({ in_reply_to, email_references }) {
+  const candidates = [in_reply_to];
+  if (email_references) {
+    candidates.push(...email_references.split(/\s+/));
+  }
+
+  for (const raw of candidates) {
+    const messageId = raw && raw.trim();
+    if (!messageId) continue;
+
+    const ticket = getEmailByMessageId(messageId) || getTicketByResponseMessageId(messageId);
+    if (ticket) return ticket;
+  }
+
+  return null;
 }
 
 function getAllEmails(filters = {}) {
@@ -180,14 +254,37 @@ function getTicketThread(id) {
   };
 }
 
-function insertResponse(emailId, { author, author_type, body, is_internal, delivery_status }) {
+function responseEventDetail({ author_type, is_internal, delivery_status }) {
+  if (is_internal) return 'Internal note added';
+  if (author_type === 'customer') return 'Customer reply received';
+  if (delivery_status === 'failed') return 'Reply failed to send';
+  if (delivery_status === 'logged') return 'Reply logged locally (email delivery not configured)';
+  return 'Reply sent to customer';
+}
+
+function insertResponse(emailId, {
+  author,
+  author_type,
+  body,
+  is_internal,
+  delivery_status,
+  provider_message_id,
+  in_reply_to,
+  email_references,
+}) {
   const ticket = getEmailById(emailId);
   if (!ticket) return null;
 
   const result = getDb()
     .prepare(
-      `INSERT INTO ticket_responses (email_id, author, author_type, body, is_internal, delivery_status)
-       VALUES (@email_id, @author, @author_type, @body, @is_internal, @delivery_status)`
+      `INSERT INTO ticket_responses (
+        email_id, author, author_type, body, is_internal, delivery_status,
+        provider_message_id, in_reply_to, email_references
+      )
+       VALUES (
+        @email_id, @author, @author_type, @body, @is_internal, @delivery_status,
+        @provider_message_id, @in_reply_to, @email_references
+      )`
     )
     .run({
       email_id: emailId,
@@ -196,6 +293,9 @@ function insertResponse(emailId, { author, author_type, body, is_internal, deliv
       body,
       is_internal: is_internal ? 1 : 0,
       delivery_status: delivery_status || 'sent',
+      provider_message_id: provider_message_id || null,
+      in_reply_to: in_reply_to || null,
+      email_references: email_references || null,
     });
 
   const now = new Date().toISOString();
@@ -206,15 +306,24 @@ function insertResponse(emailId, { author, author_type, body, is_internal, deliv
     )
     .run({ now, id: emailId });
 
-  const label = is_internal ? 'internal_note' : 'agent_reply';
+  const responseAuthorType = author_type || 'agent';
+  const label = is_internal
+    ? 'internal_note'
+    : responseAuthorType === 'customer'
+      ? 'customer_reply'
+      : 'agent_reply';
   recordEvent(
     emailId,
     label,
     author,
-    is_internal ? 'Internal note added' : 'Reply sent to customer'
+    responseEventDetail({
+      author_type: responseAuthorType,
+      is_internal,
+      delivery_status: delivery_status || 'sent',
+    })
   );
 
-  if (!is_internal && ticket.status === 'Open') {
+  if (!is_internal && responseAuthorType === 'agent' && ticket.status === 'Open') {
     getDb().prepare("UPDATE emails SET status = 'In Progress' WHERE id = ?").run(emailId);
     recordEvent(emailId, 'status_changed', author, 'Open → In Progress (first reply)');
   }
@@ -340,6 +449,9 @@ module.exports = {
   clearEmails,
   insertEmail,
   getEmailById,
+  getEmailByMessageId,
+  getResponseByProviderMessageId,
+  findTicketByMessageHeaders,
   getAllEmails,
   updateEmail,
   deleteEmail,
