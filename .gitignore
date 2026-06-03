@@ -1,0 +1,8 @@
+node_modules/
+.env
+*.db
+*.sqlite
+*.db-shm
+*.db-wal
+flaredesk.db
+*.mp4
