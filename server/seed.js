@@ -124,6 +124,36 @@ const SEED_EMAILS = [
   },
 ];
 
+function seedResponses() {
+  const db = require('./services/database');
+  const samples = [
+    { id: 1, responses: [
+      { author: 'Sarah Chen', body: 'I understand your frustration. I am escalating this to our billing lead and will have an update within 2 hours.', is_internal: 0 },
+      { author: 'Sarah Chen', body: 'Customer has Amex — chargeback risk is real. Flagged for manager callback.', is_internal: 1 },
+    ]},
+    { id: 3, responses: [
+      { author: 'Marcus Webb', body: 'Hi — I saw your message about social media. I am a senior agent and I am personally taking ownership of ticket FD-2026-0003. Can we schedule a call today?', is_internal: 0 },
+    ]},
+    { id: 4, responses: [
+      { author: 'Support Bot', body: 'Auto-ack: We received your message and a specialist will respond within 4 business hours.', is_internal: 0 },
+      { author: 'Priya Nair', body: 'Reviewing webhook logs for ticket #88421 now.', is_internal: 1 },
+    ]},
+    { id: 12, responses: [
+      { author: 'Alex Rivera', body: 'I would like to schedule a retention call with your VP before renewal. Are you available Thursday?', is_internal: 0 },
+    ]},
+  ];
+  for (const s of samples) {
+    const ticket = db.getEmailById(s.id);
+    if (!ticket) continue;
+    for (const r of s.responses) {
+      db.insertResponse(s.id, { ...r, author_type: 'agent', delivery_status: r.is_internal ? 'logged' : 'sent' });
+    }
+    if (s.id === 4) db.updateEmail(4, { status: 'In Progress', assigned_to: 'Priya Nair' }, 'system');
+    if (s.id === 12) db.updateEmail(12, { status: 'Waiting on Customer', assigned_to: 'Alex Rivera' }, 'system');
+    if (s.id === 10) db.updateEmail(10, { status: 'Resolved' }, 'system');
+  }
+}
+
 function seed() {
   db.clearEmails();
   const now = new Date().toISOString();
@@ -144,7 +174,9 @@ function seed() {
     });
   }
   const count = db.getDb().prepare('SELECT COUNT(*) as c FROM emails').get().c;
-  console.log(`✓ Seeded ${count} emails into FlareDesk database.`);
+  seedResponses();
+  const respCount = db.getDb().prepare('SELECT COUNT(*) as c FROM ticket_responses').get().c;
+  console.log(`✓ Seeded ${count} tickets with ${respCount} responses.`);
   db.closeDb();
 }
 

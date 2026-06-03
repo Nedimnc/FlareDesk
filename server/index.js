@@ -8,10 +8,12 @@ const auth = require('./middleware/auth');
 const { apiLimiter } = require('./middleware/rateLimiter');
 const emailsRouter = require('./routes/emails');
 const dashboardRouter = require('./routes/dashboard');
+const ticketsRouter = require('./routes/tickets');
+const webhooksRouter = require('./routes/webhooks');
 const db = require('./services/database');
 
 // TODO: Replace /api/config open endpoint with proper session auth (OAuth or JWT)
-// TODO: Add webhook support so FlareDesk can receive emails directly from Zapier/Mailgun
+// Webhook ingest: POST /api/webhooks/inbound-email (see ARCHITECTURE.md)
 // TODO: Add team/workspace model for multi-tenant SaaS
 // TODO: Add Stripe billing integration ($99/month per workspace)
 // TODO: Add email notification to senior agents when CRITICAL email arrives
@@ -67,6 +69,8 @@ app.get('/api/config', (req, res) => {
 
 app.use('/api', apiLimiter);
 app.use('/api/emails', auth, emailsRouter);
+app.use('/api/emails', auth, ticketsRouter);
+app.use('/api/webhooks', webhooksRouter);
 app.use('/api/dashboard', auth, dashboardRouter);
 
 app.use((err, req, res, next) => {

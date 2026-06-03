@@ -3,248 +3,105 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FlareDesk — Support Triage Command Center</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <title>FlareDesk — Support Command Center</title>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
   <style>
-    :root {
-      --bg: #0a0f1e;
-      --panel: #111827;
-      --border: #1e293b;
-      --teal: #00d4aa;
-      --red: #ff4757;
-      --amber: #ffa502;
-      --muted: #8892a4;
-      --text: #e2e8f0;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'IBM Plex Sans', system-ui, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      opacity: 0;
-      animation: fadeIn 0.6s ease forwards;
-    }
-    @keyframes fadeIn { to { opacity: 1; } }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.55} }
-    .app { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
-    .sidebar {
-      background: var(--panel);
-      border-right: 1px solid var(--border);
-      padding: 1.25rem;
-      display: flex;
-      flex-direction: column;
-      gap: 1.5rem;
-    }
-    .logo { font-size: 1.25rem; font-weight: 600; color: var(--teal); letter-spacing: 0.04em; }
-    .logo span { color: var(--muted); font-weight: 400; font-size: 0.75rem; display: block; }
-    .filter-group label { display: block; font-size: 0.7rem; text-transform: uppercase; color: var(--muted); margin-bottom: 0.35rem; }
-    .filter-group select {
-      width: 100%;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: 0.5rem;
-      border-radius: 6px;
-      font-family: inherit;
-    }
-    .mini-stats { display: grid; gap: 0.75rem; }
-    .mini-stat {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 0.75rem;
-    }
-    .mini-stat .val {
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 1.4rem;
-      color: var(--teal);
-    }
-    .mini-stat .lbl { font-size: 0.7rem; color: var(--muted); margin-top: 0.25rem; }
-    .main { display: flex; flex-direction: column; overflow: hidden; }
-    .topbar {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 1rem;
-      padding: 1.25rem 1.5rem;
-      border-bottom: 1px solid var(--border);
-      background: linear-gradient(180deg, #0d1528 0%, var(--bg) 100%);
-    }
-    .stat-card {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 1rem 1.25rem;
-    }
-    .stat-card .num {
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 1.75rem;
-      font-weight: 600;
-    }
-    .stat-card .label { color: var(--muted); font-size: 0.8rem; margin-top: 0.25rem; }
-    .content { flex: 1; padding: 1.25rem 1.5rem; overflow: auto; position: relative; }
-    .submit-panel {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      margin-bottom: 1rem;
-      overflow: hidden;
-    }
-    .submit-toggle {
-      width: 100%;
-      text-align: left;
-      padding: 0.85rem 1rem;
-      background: transparent;
-      border: none;
-      color: var(--teal);
-      font-family: inherit;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .submit-form { display: none; padding: 0 1rem 1rem; gap: 0.75rem; flex-direction: column; }
-    .submit-form.open { display: flex; }
-    .submit-form input, .submit-form textarea {
-      width: 100%;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: 0.6rem;
-      border-radius: 6px;
-      font-family: inherit;
-    }
-    .submit-form textarea { min-height: 100px; resize: vertical; }
-    .btn {
-      background: var(--teal);
-      color: #041018;
-      border: none;
-      padding: 0.65rem 1.2rem;
-      border-radius: 6px;
-      font-weight: 600;
-      cursor: pointer;
-      font-family: inherit;
-    }
-    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .btn-secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
-    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-    th {
-      text-align: left;
-      color: var(--muted);
-      font-size: 0.65rem;
-      text-transform: uppercase;
-      padding: 0.65rem;
-      border-bottom: 1px solid var(--border);
-      cursor: pointer;
-      user-select: none;
-    }
-    td { padding: 0.65rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
-    tr { cursor: pointer; transition: background 0.15s; }
-    tr:hover { background: rgba(0,212,170,0.06); }
-    tr.highlight { animation: rowFlash 1.5s ease; }
-    @keyframes rowFlash {
-      0% { background: rgba(0,212,170,0.35); }
-      100% { background: transparent; }
-    }
-    .badge {
-      display: inline-block;
-      padding: 0.2rem 0.5rem;
-      border-radius: 999px;
-      font-size: 0.7rem;
-      font-weight: 600;
-    }
-    .tone-Furious { background: rgba(255,71,87,0.2); color: var(--red); }
-    .tone-Frustrated { background: rgba(255,165,2,0.2); color: var(--amber); }
-    .tone-Anxious { background: rgba(255,165,2,0.15); color: #f1c40f; }
-    .tone-Neutral { background: rgba(136,146,164,0.2); color: var(--muted); }
-    .tone-Satisfied { background: rgba(0,212,170,0.2); color: var(--teal); }
-    .prio-CRITICAL { background: rgba(255,71,87,0.25); color: var(--red); animation: pulse 1.2s infinite; }
-    .prio-HIGH { background: rgba(255,165,2,0.2); color: var(--amber); }
-    .prio-MEDIUM { background: rgba(255,165,2,0.12); color: #f1c40f; }
-    .prio-LOW { background: rgba(136,146,164,0.2); color: var(--muted); }
-    .score-bar {
-      width: 80px;
-      height: 8px;
-      border-radius: 4px;
-      background: #1e293b;
-      overflow: hidden;
-      position: relative;
-    }
-    .score-bar-fill {
-      height: 100%;
-      border-radius: 4px;
-      box-shadow: 0 0 8px currentColor;
-    }
-    .detail-panel {
-      position: fixed;
-      top: 0;
-      right: 0;
-      width: min(420px, 100vw);
-      height: 100vh;
-      background: var(--panel);
-      border-left: 1px solid var(--border);
-      transform: translateX(100%);
-      transition: transform 0.3s ease;
-      z-index: 100;
-      padding: 1.5rem;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-    }
-    .detail-panel.open { transform: translateX(0); }
-    .detail-panel h2 { font-size: 1rem; color: var(--teal); }
-    .detail-meta { font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--muted); }
-    .detail-body {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 1rem;
-      font-size: 0.85rem;
-      line-height: 1.5;
-      white-space: pre-wrap;
-    }
-    .detail-actions { display: flex; flex-direction: column; gap: 0.5rem; margin-top: auto; }
-    .spinner {
-      display: inline-block;
-      width: 14px;
-      height: 14px;
-      border: 2px solid var(--border);
-      border-top-color: var(--teal);
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-      vertical-align: middle;
-      margin-right: 0.35rem;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.4);
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.3s;
-      z-index: 99;
-    }
-    .overlay.show { opacity: 1; pointer-events: auto; }
-    .empty { text-align: center; color: var(--muted); padding: 2rem; }
+    :root{--bg:#0a0f1e;--panel:#111827;--border:#1e293b;--teal:#00d4aa;--red:#ff4757;--amber:#ffa502;--muted:#8892a4;--text:#e2e8f0;--purple:#a78bfa}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;animation:fadeIn .5s ease}
+    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+    .app{display:grid;grid-template-columns:280px 1fr;min-height:100vh}
+    .sidebar{background:var(--panel);border-right:1px solid var(--border);padding:1.25rem;display:flex;flex-direction:column;gap:1rem}
+    .logo{font-size:1.2rem;font-weight:600;color:var(--teal)}
+    .logo small{display:block;color:var(--muted);font-size:.7rem;font-weight:400;margin-top:.2rem}
+    .arch-link{font-size:.75rem;color:var(--purple);text-decoration:none;border:1px solid var(--border);padding:.5rem;border-radius:6px}
+    .arch-link:hover{border-color:var(--purple)}
+    .filter-group label{display:block;font-size:.65rem;text-transform:uppercase;color:var(--muted);margin-bottom:.3rem}
+    .filter-group select{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:.45rem;border-radius:6px}
+    .mini-stats{display:grid;gap:.5rem}
+    .mini-stat{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:.6rem}
+    .mini-stat .val{font-family:'IBM Plex Mono',monospace;font-size:1.1rem;color:var(--teal)}
+    .mini-stat .lbl{font-size:.65rem;color:var(--muted)}
+    .main{display:flex;flex-direction:column}
+    .topbar{display:grid;grid-template-columns:repeat(6,1fr);gap:.75rem;padding:1rem 1.25rem;border-bottom:1px solid var(--border)}
+    .stat-card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:.75rem}
+    .stat-card .num{font-family:'IBM Plex Mono',monospace;font-size:1.35rem;font-weight:600}
+    .stat-card .label{color:var(--muted);font-size:.7rem;margin-top:.15rem}
+    .content{flex:1;padding:1rem 1.25rem;overflow:auto}
+    .banner{background:linear-gradient(90deg,rgba(0,212,170,.12),rgba(167,139,250,.12));border:1px solid var(--border);border-radius:8px;padding:.6rem 1rem;font-size:.8rem;color:var(--muted);margin-bottom:1rem}
+    .banner strong{color:var(--teal)}
+    table{width:100%;border-collapse:collapse;font-size:.82rem}
+    th{text-align:left;color:var(--muted);font-size:.62rem;text-transform:uppercase;padding:.55rem;border-bottom:1px solid var(--border);cursor:pointer}
+    td{padding:.55rem;border-bottom:1px solid var(--border);vertical-align:middle}
+    tr{cursor:pointer;transition:background .15s}
+    tr:hover{background:rgba(0,212,170,.05)}
+    tr.active{background:rgba(0,212,170,.12)}
+    tr.highlight{animation:flash 1.5s ease}
+    @keyframes flash{0%{background:rgba(0,212,170,.35)}100%{background:transparent}}
+    .ticket-id{font-family:'IBM Plex Mono',monospace;font-size:.72rem;color:var(--purple)}
+    .badge{display:inline-block;padding:.15rem .45rem;border-radius:999px;font-size:.68rem;font-weight:600}
+    .tone-Furious{background:rgba(255,71,87,.2);color:var(--red)}
+    .tone-Frustrated{background:rgba(255,165,2,.2);color:var(--amber)}
+    .tone-Anxious{background:rgba(255,165,2,.15);color:#f1c40f}
+    .tone-Neutral{background:rgba(136,146,164,.2);color:var(--muted)}
+    .tone-Satisfied{background:rgba(0,212,170,.2);color:var(--teal)}
+    .prio-CRITICAL{background:rgba(255,71,87,.25);color:var(--red);animation:pulse 1.2s infinite}
+    .prio-HIGH{background:rgba(255,165,2,.2);color:var(--amber)}
+    .prio-MEDIUM{background:rgba(255,165,2,.12);color:#f1c40f}
+    .prio-LOW{background:rgba(136,146,164,.2);color:var(--muted)}
+    .score-bar{width:70px;height:7px;border-radius:4px;background:#1e293b;overflow:hidden;display:inline-block;vertical-align:middle}
+    .score-bar-fill{height:100%;border-radius:4px}
+    .detail-panel{position:fixed;top:0;right:0;width:min(520px,100vw);height:100vh;background:var(--panel);border-left:1px solid var(--border);transform:translateX(100%);transition:transform .3s ease;z-index:100;display:flex;flex-direction:column}
+    .detail-panel.open{transform:translateX(0)}
+    .detail-header{padding:1rem 1.25rem;border-bottom:1px solid var(--border)}
+    .detail-header h2{font-size:.95rem;margin:.4rem 0}
+    .detail-tabs{display:flex;gap:.5rem;padding:0 1.25rem;border-bottom:1px solid var(--border)}
+    .tab{padding:.6rem .8rem;background:none;border:none;color:var(--muted);cursor:pointer;font-family:inherit;font-size:.8rem;border-bottom:2px solid transparent}
+    .tab.active{color:var(--teal);border-bottom-color:var(--teal)}
+    .detail-body{flex:1;overflow-y:auto;padding:1rem 1.25rem;display:flex;flex-direction:column;gap:.75rem}
+    .thread-msg{border-radius:8px;padding:.75rem;border:1px solid var(--border)}
+    .thread-msg.inbound{background:var(--bg)}
+    .thread-msg.outbound{border-color:rgba(0,212,170,.3);background:rgba(0,212,170,.06)}
+    .thread-msg.internal{border-color:rgba(167,139,250,.3);background:rgba(167,139,250,.08)}
+    .thread-meta{font-size:.68rem;color:var(--muted);margin-bottom:.35rem;font-family:'IBM Plex Mono',monospace}
+    .thread-text{font-size:.85rem;line-height:1.45;white-space:pre-wrap}
+    .event-item{font-size:.78rem;padding:.4rem 0;border-bottom:1px dashed var(--border);color:var(--muted)}
+    .event-item strong{color:var(--text)}
+    .reply-box{border-top:1px solid var(--border);padding:1rem 1.25rem;background:#0d1324}
+    .reply-tabs{display:flex;gap:.5rem;margin-bottom:.5rem}
+    .reply-tab{padding:.35rem .6rem;border:1px solid var(--border);background:transparent;color:var(--muted);border-radius:4px;cursor:pointer;font-size:.75rem}
+    .reply-tab.active{background:var(--teal);color:#041018;border-color:var(--teal)}
+    textarea{width:100%;min-height:80px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:.6rem;border-radius:6px;font-family:inherit;resize:vertical}
+    .btn{background:var(--teal);color:#041018;border:none;padding:.55rem 1rem;border-radius:6px;font-weight:600;cursor:pointer;font-family:inherit;margin-top:.5rem}
+    .btn-secondary{background:transparent;border:1px solid var(--border);color:var(--text)}
+    .btn-row{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.5rem}
+    .status-select{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:.4rem;border-radius:4px;font-size:.75rem}
+    .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);opacity:0;pointer-events:none;transition:opacity .3s;z-index:99}
+    .overlay.show{opacity:1;pointer-events:auto}
+    .submit-panel{background:var(--panel);border:1px solid var(--border);border-radius:8px;margin-bottom:1rem}
+    .submit-toggle{width:100%;text-align:left;padding:.75rem 1rem;background:transparent;border:none;color:var(--teal);font-weight:600;cursor:pointer}
+    .submit-form{display:none;padding:0 1rem 1rem;flex-direction:column;gap:.5rem}
+    .submit-form.open{display:flex}
+    .submit-form input,.submit-form textarea{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:.5rem;border-radius:6px}
+    .hidden{display:none!important}
+    .spinner{display:inline-block;width:12px;height:12px;border:2px solid var(--border);border-top-color:var(--teal);border-radius:50%;animation:spin .7s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
   </style>
 </head>
 <body>
   <div class="overlay" id="overlay"></div>
   <div class="app">
     <aside class="sidebar">
-      <div class="logo">FLAREDESK<span>Distress triage ops</span></div>
-      <div class="filter-group">
-        <label>Status</label>
-        <select id="filterStatus"><option value="">All</option><option>Open</option><option>In Progress</option><option>Resolved</option></select>
+      <div class="logo">FLAREDESK<small>Ticket + distress command center</small></div>
+      <a class="arch-link" href="/ARCHITECTURE.md" target="_blank">📋 Product roadmap & email integration plan</a>
+      <div class="filter-group"><label>Status</label>
+        <select id="filterStatus"><option value="">All</option><option>Open</option><option>In Progress</option><option>Waiting on Customer</option><option>Resolved</option><option>Closed</option></select>
       </div>
-      <div class="filter-group">
-        <label>Priority</label>
+      <div class="filter-group"><label>Priority</label>
         <select id="filterPriority"><option value="">All</option><option>CRITICAL</option><option>HIGH</option><option>MEDIUM</option><option>LOW</option></select>
       </div>
-      <div class="filter-group">
-        <label>Tone</label>
+      <div class="filter-group"><label>Tone</label>
         <select id="filterTone"><option value="">All</option><option>Furious</option><option>Frustrated</option><option>Anxious</option><option>Neutral</option><option>Satisfied</option></select>
       </div>
       <div class="mini-stats" id="miniStats"></div>
@@ -252,239 +109,115 @@
     <div class="main">
       <div class="topbar" id="topbar"></div>
       <div class="content">
+        <div class="banner">Each inbound email is a <strong>ticket</strong> (ID like FD-2026-0001) with a full conversation thread, agent replies, internal notes, and activity log. <strong>Email auto-ingest</strong> via webhook is ready at <code>POST /api/webhooks/inbound-email</code> — connect Mailgun, SendGrid, or Gmail later.</div>
         <div class="submit-panel">
-          <button type="button" class="submit-toggle" id="submitToggle">+ Submit incoming email for analysis</button>
+          <button type="button" class="submit-toggle" id="submitToggle">+ Simulate inbound email (manual / pre-integration)</button>
           <form class="submit-form" id="submitForm">
             <input type="email" id="sender" placeholder="Sender email" required />
             <input type="text" id="subject" placeholder="Subject" required />
             <textarea id="body" placeholder="Email body..." required></textarea>
-            <button type="submit" class="btn" id="submitBtn">Analyze with AI</button>
+            <button type="submit" class="btn" id="submitBtn">Create ticket + analyze</button>
           </form>
         </div>
         <table>
-          <thead>
-            <tr>
-              <th data-sort="distress_score">Distress</th>
-              <th data-sort="priority">Priority</th>
-              <th>Sender</th>
-              <th>Subject</th>
-              <th>Tone</th>
-              <th>Risk</th>
-              <th data-sort="received_at">Received</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody id="emailTable"><tr><td colspan="8" class="empty">Loading queue...</td></tr></tbody>
+          <thead><tr>
+            <th data-sort="distress_score">Distress</th>
+            <th>Ticket</th>
+            <th data-sort="priority">Priority</th>
+            <th>Sender</th>
+            <th>Subject</th>
+            <th>Tone</th>
+            <th>Replies</th>
+            <th>Status</th>
+          </tr></thead>
+          <tbody id="emailTable"><tr><td colspan="8">Loading...</td></tr></tbody>
         </table>
       </div>
     </div>
   </div>
   <aside class="detail-panel" id="detailPanel">
-    <button type="button" class="btn-secondary" id="closeDetail">Close</button>
-    <h2 id="detailSubject"></h2>
-    <div class="detail-meta" id="detailMeta"></div>
-    <p id="detailSummary"></p>
-    <div class="detail-body" id="detailBody"></div>
-    <div class="detail-actions">
-      <button type="button" class="btn" data-action="assign">Assign to Senior Agent</button>
-      <button type="button" class="btn btn-secondary" data-action="progress">Mark In Progress</button>
-      <button type="button" class="btn btn-secondary" data-action="resolve">Mark Resolved</button>
+    <div class="detail-header">
+      <button type="button" class="btn-secondary" id="closeDetail" style="margin:0;padding:.3rem .6rem;font-size:.75rem">✕ Close</button>
+      <div class="ticket-id" id="detailTicketId"></div>
+      <h2 id="detailSubject"></h2>
+      <div id="detailMeta" style="font-size:.75rem;color:var(--muted);margin-top:.35rem"></div>
+    </div>
+    <div class="detail-tabs">
+      <button type="button" class="tab active" data-tab="conversation">Conversation</button>
+      <button type="button" class="tab" data-tab="activity">Activity</button>
+    </div>
+    <div class="detail-body" id="tabConversation"></div>
+    <div class="detail-body hidden" id="tabActivity"></div>
+    <div class="reply-box" id="replyBox">
+      <div class="reply-tabs">
+        <button type="button" class="reply-tab active" data-reply="customer">Reply to customer</button>
+        <button type="button" class="reply-tab" data-reply="internal">Internal note</button>
+      </div>
+      <textarea id="replyBody" placeholder="Type your response..."></textarea>
+      <button type="button" class="btn" id="sendReply">Send reply</button>
+      <div class="btn-row">
+        <select class="status-select" id="statusSelect">
+          <option>Open</option><option>In Progress</option><option>Waiting on Customer</option><option>Resolved</option><option>Closed</option>
+        </select>
+        <button type="button" class="btn btn-secondary" data-action="assign">Assign senior</button>
+        <button type="button" class="btn btn-secondary" data-action="waiting">Waiting on customer</button>
+      </div>
     </div>
   </aside>
   <script>
-    let apiKey = '';
-    let emails = [];
-    let sortField = 'distress_score';
-    let sortAsc = false;
-    let selectedId = null;
-    let highlightId = null;
-
-    const $ = (id) => document.getElementById(id);
-
-    async function api(path, options = {}) {
-      const headers = { Authorization: 'Bearer ' + apiKey, ...(options.headers || {}) };
-      const res = await fetch(path, { ...options, headers });
-      if (!res.ok) throw new Error('API ' + res.status);
-      if (res.status === 204) return null;
-      return res.json();
-    }
-
-    function scoreGradient(n) {
-      const pct = (n / 10) * 100;
-      return 'linear-gradient(90deg, #00d4aa 0%, #ffa502 ' + (pct * 0.6) + '%, #ff4757 100%)';
-    }
-
-    function renderScore(n) {
-      const w = (n / 10) * 100;
-      return '<div class="score-bar"><div class="score-bar-fill" style="width:' + w + '%;background:' + scoreGradient(n) + '"></div></div> <span style="font-family:IBM Plex Mono,monospace;font-size:0.75rem">' + n + '/10</span>';
-    }
-
-    function badge(cls, text) {
-      return '<span class="badge ' + cls + '">' + text + '</span>';
-    }
-
-    function unescapeHtml(s) {
-      const d = document.createElement('div');
-      d.innerHTML = s;
-      return d.textContent;
-    }
-
-    function filteredEmails() {
-      const status = $('filterStatus').value;
-      const priority = $('filterPriority').value;
-      const tone = $('filterTone').value;
-      return emails.filter((e) => {
-        if (status && e.status !== status) return false;
-        if (priority && e.priority !== priority) return false;
-        if (tone && e.tone_label !== tone) return false;
-        return true;
-      }).sort((a, b) => {
-        let av = a[sortField];
-        let bv = b[sortField];
-        if (sortField === 'received_at') {
-          av = new Date(av).getTime();
-          bv = new Date(bv).getTime();
-        }
-        if (av < bv) return sortAsc ? -1 : 1;
-        if (av > bv) return sortAsc ? 1 : -1;
-        return 0;
-      });
-    }
-
-    function renderTable() {
-      const rows = filteredEmails();
-      if (!rows.length) {
-        $('emailTable').innerHTML = '<tr><td colspan="8" class="empty">No emails match filters</td></tr>';
-        return;
-      }
-      $('emailTable').innerHTML = rows.map((e) => {
-        const hl = e.id === highlightId ? ' class="highlight"' : '';
-        const time = new Date(e.received_at).toLocaleString();
-        return '<tr data-id="' + e.id + '"' + hl + '>' +
-          '<td>' + renderScore(e.distress_score) + '</td>' +
-          '<td>' + badge('prio-' + e.priority, e.priority) + '</td>' +
-          '<td>' + unescapeHtml(e.sender) + '</td>' +
-          '<td>' + unescapeHtml(e.subject) + '</td>' +
-          '<td>' + badge('tone-' + e.tone_label, e.tone_label) + '</td>' +
-          '<td>' + e.escalation_risk + '</td>' +
-          '<td style="color:var(--muted);font-size:0.75rem">' + time + '</td>' +
-          '<td>' + e.status + '</td></tr>';
-      }).join('');
-      document.querySelectorAll('#emailTable tr[data-id]').forEach((tr) => {
-        tr.addEventListener('click', () => openDetail(Number(tr.dataset.id)));
-      });
-    }
-
-    async function loadDashboard() {
-      const stats = await api('/api/dashboard');
-      $('topbar').innerHTML = [
-        ['Total', stats.total],
-        ['Open', stats.open],
-        ['Critical', stats.critical],
-        ['Avg Distress', stats.avg_distress_score],
-      ].map(([label, num]) => '<div class="stat-card"><div class="num">' + num + '</div><div class="label">' + label + '</div></div>').join('');
-      $('miniStats').innerHTML = Object.entries(stats.tone_breakdown || {}).slice(0, 4).map(([k, v]) =>
-        '<div class="mini-stat"><div class="val">' + v + '</div><div class="lbl">' + k + '</div></div>'
-      ).join('');
-    }
-
-    async function loadEmails() {
-      emails = await api('/api/emails?sort=distress_score&order=desc');
-      renderTable();
-    }
-
-    async function openDetail(id) {
-      selectedId = id;
-      const e = emails.find((x) => x.id === id) || await api('/api/emails/' + id);
-      $('detailSubject').textContent = unescapeHtml(e.subject);
-      $('detailMeta').textContent = unescapeHtml(e.sender) + ' · ' + e.priority + ' · Score ' + e.distress_score + '/10 · Risk: ' + e.escalation_risk;
-      $('detailSummary').textContent = e.summary || '';
-      $('detailBody').textContent = unescapeHtml(e.body);
-      $('detailPanel').classList.add('open');
-      $('overlay').classList.add('show');
-    }
-
-    function closeDetail() {
-      $('detailPanel').classList.remove('open');
-      $('overlay').classList.remove('show');
-      selectedId = null;
-    }
-
-    async function patchEmail(fields) {
-      if (!selectedId) return;
-      await api('/api/emails/' + selectedId, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(fields),
-      });
-      await loadEmails();
-      openDetail(selectedId);
-    }
-
-    $('submitToggle').addEventListener('click', () => $('submitForm').classList.toggle('open'));
-    $('closeDetail').addEventListener('click', closeDetail);
-    $('overlay').addEventListener('click', closeDetail);
-
-    $('submitForm').addEventListener('submit', async (ev) => {
-      ev.preventDefault();
-      const btn = $('submitBtn');
-      btn.disabled = true;
-      btn.innerHTML = '<span class="spinner"></span>Analyzing...';
-      try {
-        const created = await api('/api/emails', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sender: $('sender').value,
-            subject: $('subject').value,
-            body: $('body').value,
-          }),
-        });
-        highlightId = created.id;
-        $('submitForm').reset();
-        await loadEmails();
-        await loadDashboard();
-        setTimeout(() => { highlightId = null; }, 2000);
-      } catch (err) {
-        alert('Failed to analyze email');
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'Analyze with AI';
-      }
-    });
-
-    document.querySelectorAll('[data-action]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        if (btn.dataset.action === 'assign') patchEmail({ assigned_to: 'Senior Agent', status: 'In Progress' });
-        if (btn.dataset.action === 'progress') patchEmail({ status: 'In Progress' });
-        if (btn.dataset.action === 'resolve') patchEmail({ status: 'Resolved' });
-      });
-    });
-
-    ['filterStatus', 'filterPriority', 'filterTone'].forEach((id) => {
-      $(id).addEventListener('change', renderTable);
-    });
-
-    document.querySelectorAll('th[data-sort]').forEach((th) => {
-      th.addEventListener('click', () => {
-        const f = th.dataset.sort;
-        if (sortField === f) sortAsc = !sortAsc;
-        else { sortField = f; sortAsc = false; }
-        renderTable();
-      });
-    });
-
-    async function init() {
-      const cfg = await fetch('/api/config').then((r) => r.json());
-      apiKey = cfg.apiKey;
-      await loadDashboard();
-      await loadEmails();
-      setInterval(loadEmails, 30000);
-    }
-
-    init().catch(() => {
-      $('emailTable').innerHTML = '<tr><td colspan="8" class="empty">Failed to connect to API</td></tr>';
-    });
+    let apiKey='', emails=[], thread=null, selectedId=null, highlightId=null;
+    let sortField='distress_score', sortAsc=false, replyInternal=false, activeTab='conversation';
+    const $=id=>document.getElementById(id);
+    async function api(path,opt={}){const r=await fetch(path,{...opt,headers:{Authorization:'Bearer '+apiKey,...(opt.headers||{})}});if(!r.ok)throw new Error(r.status);if(r.status===204)return null;return r.json()}
+    function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+    function unesc(s){const d=document.createElement('div');d.innerHTML=s;return d.textContent}
+    function badge(c,t){return '<span class="badge '+c+'">'+t+'</span>'}
+    function scoreBar(n){const w=n/10*100;return '<span class="score-bar"><span class="score-bar-fill" style="width:'+w+'%;background:linear-gradient(90deg,#00d4aa,#ffa502,#ff4757)"></span></span> <span style="font-family:IBM Plex Mono;font-size:.7rem">'+n+'</span>'}
+    function filtered(){const st=$('filterStatus').value,pr=$('filterPriority').value,tn=$('filterTone').value;
+      return emails.filter(e=>(!st||e.status===st)&&(!pr||e.priority===pr)&&(!tn||e.tone_label===tn))
+        .sort((a,b)=>{let av=a[sortField],bv=b[sortField];if(sortField==='received_at'){av=new Date(av);bv=new Date(bv)}return av<bv?sortAsc?-1:1:av>bv?sortAsc?1:-1:0})}
+    function renderTable(){const rows=filtered();
+      if(!rows.length){$('emailTable').innerHTML='<tr><td colspan="8">No tickets</td></tr>';return}
+      $('emailTable').innerHTML=rows.map(e=>{
+        const act=e.id===selectedId?' active':'', hl=e.id===highlightId?' highlight':'';
+        return '<tr data-id="'+e.id+'" class="'+act+hl+'"><td>'+scoreBar(e.distress_score)+'</td><td class="ticket-id">'+(e.ticket_number||'—')+'</td><td>'+badge('prio-'+e.priority,e.priority)+'</td><td>'+esc(unesc(e.sender))+'</td><td>'+esc(unesc(e.subject))+'</td><td>'+badge('tone-'+e.tone_label,e.tone_label)+'</td><td>'+(e.response_count||0)+'</td><td>'+e.status+'</td></tr>'}).join('');
+      document.querySelectorAll('#emailTable tr[data-id]').forEach(tr=>tr.onclick=()=>openDetail(+tr.dataset.id))}
+    async function loadDashboard(){const s=await api('/api/dashboard');
+      const items=[['Tickets',s.total],['Open',s.open],['Critical',s.critical],['Awaiting reply',s.awaiting_response],['Responses',s.total_responses],['Closed',s.closed]];
+      $('topbar').innerHTML=items.map(([l,n])=>'<div class="stat-card"><div class="num">'+n+'</div><div class="label">'+l+'</div></div>').join('');
+      $('miniStats').innerHTML='<div class="mini-stat"><div class="val">'+s.avg_distress_score+'</div><div class="lbl">Avg distress</div></div>'}
+    async function loadEmails(){emails=await api('/api/emails?sort=distress_score&order=desc');renderTable()}
+    function renderThread(){const t=thread.ticket;
+      $('detailTicketId').textContent=t.ticket_number+' · '+t.channel+' channel';
+      $('detailSubject').textContent=unesc(t.subject);
+      $('detailMeta').innerHTML=esc(unesc(t.sender))+' · '+badge('prio-'+t.priority,t.priority)+' · '+badge('tone-'+t.tone_label,t.tone_label)+' · Risk: '+t.escalation_risk;
+      $('statusSelect').value=t.status;
+      const msgs=[{type:'inbound',author:t.sender,time:t.received_at,body:t.body,label:'Original inbound email'},...thread.responses.map(r=>({type:r.is_internal?'internal':'outbound',author:r.author,time:r.created_at,body:r.body,label:r.is_internal?'Internal note':'Agent reply'}))];
+      $('tabConversation').innerHTML='<p style="font-size:.8rem;color:var(--muted);margin-bottom:.5rem">'+esc(t.summary||'')+'</p>'+msgs.map(m=>'<div class="thread-msg '+m.type+'"><div class="thread-meta">'+m.label+' · '+esc(m.author)+' · '+new Date(m.time).toLocaleString()+'</div><div class="thread-text">'+esc(unesc(m.body))+'</div></div>').join('');
+      $('tabActivity').innerHTML=thread.events.slice().reverse().map(ev=>'<div class="event-item"><strong>'+ev.event_type+'</strong> — '+(ev.detail||'')+' <span style="opacity:.7">('+new Date(ev.created_at).toLocaleString()+')</span></div>').join('')}
+    async function openDetail(id){selectedId=id;thread=await api('/api/emails/'+id+'/thread');renderThread();$('detailPanel').classList.add('open');$('overlay').classList.add('show');renderTable();
+      if(thread.ticket.status==='Closed')$('replyBox').classList.add('hidden');else $('replyBox').classList.remove('hidden')}
+    function closeDetail(){$('detailPanel').classList.remove('open');$('overlay').classList.remove('show');selectedId=null;renderTable()}
+    async function patchTicket(fields){if(!selectedId)return;await api('/api/emails/'+selectedId,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(fields)});await loadEmails();thread=await api('/api/emails/'+selectedId+'/thread');renderThread();await loadDashboard()}
+    $('closeDetail').onclick=closeDetail;$('overlay').onclick=closeDetail;
+    document.querySelectorAll('.tab').forEach(tab=>tab.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));tab.classList.add('active');
+      $('tabConversation').classList.toggle('hidden',tab.dataset.tab!=='conversation');$('tabActivity').classList.toggle('hidden',tab.dataset.tab!=='activity')});
+    document.querySelectorAll('.reply-tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.reply-tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');replyInternal=b.dataset.reply==='internal'});
+    $('sendReply').onclick=async()=>{const body=$('replyBody').value.trim();if(!body||!selectedId)return;const btn=$('sendReply');btn.disabled=true;
+      try{await api('/api/emails/'+selectedId+'/responses',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({body,is_internal:replyInternal})});
+        $('replyBody').value='';await loadEmails();thread=await api('/api/emails/'+selectedId+'/thread');renderThread();await loadDashboard()}finally{btn.disabled=false}};
+    $('statusSelect').onchange=()=>patchTicket({status:$('statusSelect').value});
+    document.querySelectorAll('[data-action]').forEach(b=>b.onclick=()=>{
+      if(b.dataset.action==='assign')patchTicket({assigned_to:'Senior Agent',status:'In Progress'});
+      if(b.dataset.action==='waiting')patchTicket({status:'Waiting on Customer'})});
+    $('submitToggle').onclick=()=>$('submitForm').classList.toggle('open');
+    $('submitForm').onsubmit=async ev=>{ev.preventDefault();const btn=$('submitBtn');btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Analyzing...';
+      try{const c=await api('/api/emails',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sender:$('sender').value,subject:$('subject').value,body:$('body').value})});
+        highlightId=c.id;$('submitForm').reset();await loadEmails();await loadDashboard();setTimeout(()=>highlightId=null,2000)}catch(e){alert('Failed')}finally{btn.disabled=false;btn.textContent='Create ticket + analyze'}};
+    ['filterStatus','filterPriority','filterTone'].forEach(id=>$(id).onchange=renderTable);
+    document.querySelectorAll('th[data-sort]').forEach(th=>th.onclick=()=>{const f=th.dataset.sort;if(sortField===f)sortAsc=!sortAsc;else{sortField=f;sortAsc=false}renderTable()});
+    async function init(){const cfg=await fetch('/api/config').then(r=>r.json());apiKey=cfg.apiKey;await loadDashboard();await loadEmails();setInterval(loadEmails,30000)}
+    init().catch(()=>$('emailTable').innerHTML='<tr><td colspan="8">API connection failed</td></tr>');
   </script>
 </body>
 </html>

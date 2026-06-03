@@ -58,7 +58,7 @@ function sanitizeEmailInput({ sender, subject, body }) {
 
 function sanitizePatchInput({ status, assigned_to }) {
   const result = {};
-  const allowedStatus = new Set(['Open', 'In Progress', 'Resolved']);
+  const allowedStatus = new Set(['Open', 'In Progress', 'Waiting on Customer', 'Resolved', 'Closed']);
 
   if (status !== undefined) {
     if (typeof status !== 'string' || !allowedStatus.has(status.trim())) {
@@ -82,9 +82,30 @@ function sanitizePatchInput({ status, assigned_to }) {
   return { valid: true, data: result };
 }
 
+function sanitizeResponseInput({ body, is_internal }) {
+  if (body == null || typeof body !== 'string') {
+    return { valid: false, error: 'Response body is required' };
+  }
+  const stripped = stripHtml(body).trim();
+  if (!stripped) {
+    return { valid: false, error: 'Response body cannot be empty' };
+  }
+  if (stripped.length > 10000) {
+    return { valid: false, error: 'Response body must be at most 10000 characters' };
+  }
+  return {
+    valid: true,
+    data: {
+      body: validator.escape(stripped),
+      is_internal: Boolean(is_internal),
+    },
+  };
+}
+
 module.exports = {
   sanitizeEmailInput,
   sanitizePatchInput,
   stripHtml,
   LIMITS,
+  sanitizeResponseInput,
 };

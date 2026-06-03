@@ -10,6 +10,7 @@ function getDb() {
     db = new Database(DB_PATH);
     db.pragma('journal_mode = WAL');
     initSchema(db);
+    migrateSchema(db);
   }
   return db;
 }
@@ -18,6 +19,7 @@ function initSchema(database) {
   database.exec(`
     CREATE TABLE IF NOT EXISTS emails (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ticket_number TEXT UNIQUE,
       sender TEXT NOT NULL,
       subject TEXT NOT NULL,
       body TEXT NOT NULL,
@@ -28,28 +30,103 @@ function initSchema(database) {
       escalation_risk TEXT,
       assigned_to TEXT DEFAULT 'Unassigned',
       status TEXT DEFAULT 'Open',
+      channel TEXT DEFAULT 'manual',
       received_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      analyzed_at DATETIME
+      analyzed_at DATETIME,
+      closed_at DATETIME,
+      last_response_at DATETIME,
+      response_count INTEGER DEFAULT 0
     );
+
+    CREATE TABLE IF NOT EXISTS ticket_responses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email_id INTEGER NOT NULL,
+      author TEXT NOT NULL,
+      author_type TEXT NOT NULL DEFAULT 'agent',
+      body TEXT NOT NULL,
+      is_internal INTEGER NOT NULL DEFAULT 0,
+      delivery_status TEXT DEFAULT 'sent',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (email_id) REFERENCES emails(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS ticket_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email_id INTEGER NOT NULL,
+      event_type TEXT NOT NULL,
+      actor TEXT,
+      detail TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (email_id) REFERENCES emails(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_responses_email ON ticket_responses(email_id);
+    CREATE INDEX IF NOT EXISTS idx_events_email ON ticket_events(email_id);
   `);
 }
 
+function migrateSchema(database) {
+  const cols = new Set(
+    database.prepare('PRAGMA table_info(emails)').all().map((c) => c.name)
+  );
+  const migrations = [
+    ['ticket_number', 'TEXT'],
+    ['channel', "TEXT DEFAULT 'manual'"],
+    ['closed_at', 'DATETIME'],
+    ['last_response_at', 'DATETIME'],
+    ['response_count', 'INTEGER DEFAULT 0'],
+  ];
+  for (const [name, def] of migrations) {
+    if (!cols.has(name)) {
+      database.exec(`ALTER TABLE emails ADD COLUMN ${name} ${def}`);
+    }
+  }
+}
+
+function generateTicketNumber(id) {
+  const year = new Date().getFullYear();
+  return `FD-${year}-${String(id).padStart(4, '0')}`;
+}
+
+function recordEvent(emailId, eventType, actor, detail) {
+  getDb()
+    .prepare(
+      'INSERT INTO ticket_events (email_id, event_type, actor, detail) VALUES (?, ?, ?, ?)'
+    )
+    .run(emailId, eventType, actor || 'system', detail || null);
+}
+
 function clearEmails() {
-  getDb().prepare('DELETE FROM emails').run();
+  const conn = getDb();
+  conn.prepare('DELETE FROM ticket_responses').run();
+  conn.prepare('DELETE FROM ticket_events').run();
+  conn.prepare('DELETE FROM emails').run();
 }
 
 function insertEmail(row) {
   const stmt = getDb().prepare(`
     INSERT INTO emails (
       sender, subject, body, tone_label, distress_score, priority,
-      summary, escalation_risk, assigned_to, status, received_at, analyzed_at
+      summary, escalation_risk, assigned_to, status, channel,
+      received_at, analyzed_at
     ) VALUES (
       @sender, @subject, @body, @tone_label, @distress_score, @priority,
-      @summary, @escalation_risk, @assigned_to, @status, @received_at, @analyzed_at
+      @summary, @escalation_risk, @assigned_to, @status, @channel,
+      @received_at, @analyzed_at
     )
   `);
-  const result = stmt.run(row);
-  return getEmailById(result.lastInsertRowid);
+  const result = stmt.run({
+    channel: 'manual',
+    ...row,
+  });
+  const id = result.lastInsertRowid;
+  const ticketNumber = generateTicketNumber(id);
+  getDb()
+    .prepare('UPDATE emails SET ticket_number = ? WHERE id = ?')
+    .run(ticketNumber, id);
+  recordEvent(id, 'ticket_created', 'system', `Inbound via ${row.channel || 'manual'}`);
+  recordEvent(id, 'analysis_complete', 'ai', row.summary || 'Tone analysis completed');
+  return getEmailById(id);
 }
 
 function getEmailById(id) {
@@ -58,7 +135,7 @@ function getEmailById(id) {
 
 function getAllEmails(filters = {}) {
   const { status, priority, sort = 'distress_score', order = 'desc' } = filters;
-  const allowedSort = ['distress_score', 'received_at', 'priority', 'id'];
+  const allowedSort = ['distress_score', 'received_at', 'priority', 'id', 'last_response_at'];
   const sortCol = allowedSort.includes(sort) ? sort : 'distress_score';
   const sortOrder = order.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
 
@@ -79,10 +156,81 @@ function getAllEmails(filters = {}) {
   return getDb().prepare(sql).all(...params);
 }
 
-function updateEmail(id, fields) {
+function getResponses(emailId) {
+  return getDb()
+    .prepare(
+      'SELECT * FROM ticket_responses WHERE email_id = ? ORDER BY created_at ASC'
+    )
+    .all(emailId);
+}
+
+function getEvents(emailId) {
+  return getDb()
+    .prepare('SELECT * FROM ticket_events WHERE email_id = ? ORDER BY created_at ASC')
+    .all(emailId);
+}
+
+function getTicketThread(id) {
+  const ticket = getEmailById(id);
+  if (!ticket) return null;
+  return {
+    ticket,
+    responses: getResponses(id),
+    events: getEvents(id),
+  };
+}
+
+function insertResponse(emailId, { author, author_type, body, is_internal, delivery_status }) {
+  const ticket = getEmailById(emailId);
+  if (!ticket) return null;
+
+  const result = getDb()
+    .prepare(
+      `INSERT INTO ticket_responses (email_id, author, author_type, body, is_internal, delivery_status)
+       VALUES (@email_id, @author, @author_type, @body, @is_internal, @delivery_status)`
+    )
+    .run({
+      email_id: emailId,
+      author,
+      author_type: author_type || 'agent',
+      body,
+      is_internal: is_internal ? 1 : 0,
+      delivery_status: delivery_status || 'sent',
+    });
+
+  const now = new Date().toISOString();
+  getDb()
+    .prepare(
+      `UPDATE emails SET response_count = response_count + 1, last_response_at = @now
+       WHERE id = @id`
+    )
+    .run({ now, id: emailId });
+
+  const label = is_internal ? 'internal_note' : 'agent_reply';
+  recordEvent(
+    emailId,
+    label,
+    author,
+    is_internal ? 'Internal note added' : 'Reply sent to customer'
+  );
+
+  if (!is_internal && ticket.status === 'Open') {
+    getDb().prepare("UPDATE emails SET status = 'In Progress' WHERE id = ?").run(emailId);
+    recordEvent(emailId, 'status_changed', author, 'Open → In Progress (first reply)');
+  }
+
+  return getDb()
+    .prepare('SELECT * FROM ticket_responses WHERE id = ?')
+    .get(result.lastInsertRowid);
+}
+
+function updateEmail(id, fields, actor = 'agent') {
+  const existing = getEmailById(id);
+  if (!existing) return null;
+
   const allowed = ['status', 'assigned_to'];
   const updates = [];
-  const params = {};
+  const params = { id };
 
   for (const key of allowed) {
     if (fields[key] !== undefined) {
@@ -91,28 +239,52 @@ function updateEmail(id, fields) {
     }
   }
 
-  if (updates.length === 0) {
-    return getEmailById(id);
+  if (fields.status === 'Closed' || fields.status === 'Resolved') {
+    updates.push('closed_at = @closed_at');
+    params.closed_at = new Date().toISOString();
   }
 
-  params.id = id;
+  if (updates.length === 0) {
+    return existing;
+  }
+
   const sql = `UPDATE emails SET ${updates.join(', ')} WHERE id = @id`;
   getDb().prepare(sql).run(params);
+
+  if (fields.status && fields.status !== existing.status) {
+    recordEvent(id, 'status_changed', actor, `${existing.status} → ${fields.status}`);
+  }
+  if (fields.assigned_to && fields.assigned_to !== existing.assigned_to) {
+    recordEvent(id, 'assigned', actor, `Assigned to ${fields.assigned_to}`);
+  }
+
   return getEmailById(id);
 }
 
 function deleteEmail(id) {
-  const result = getDb().prepare('DELETE FROM emails WHERE id = ?').run(id);
+  const conn = getDb();
+  conn.prepare('DELETE FROM ticket_responses WHERE email_id = ?').run(id);
+  conn.prepare('DELETE FROM ticket_events WHERE email_id = ?').run(id);
+  const result = conn.prepare('DELETE FROM emails WHERE id = ?').run(id);
   return result.changes > 0;
 }
 
 function getDashboardStats() {
   const dbConn = getDb();
   const total = dbConn.prepare('SELECT COUNT(*) as count FROM emails').get().count;
-  const open = dbConn.prepare("SELECT COUNT(*) as count FROM emails WHERE status = 'Open'").get().count;
-  const critical = dbConn
-    .prepare("SELECT COUNT(*) as count FROM emails WHERE priority = 'CRITICAL'")
+  const open = dbConn
+    .prepare("SELECT COUNT(*) as count FROM emails WHERE status IN ('Open', 'In Progress', 'Waiting on Customer')")
     .get().count;
+  const critical = dbConn
+    .prepare("SELECT COUNT(*) as count FROM emails WHERE priority = 'CRITICAL' AND status != 'Closed'")
+    .get().count;
+  const closed = dbConn.prepare("SELECT COUNT(*) as count FROM emails WHERE status = 'Closed'").get().count;
+  const awaiting = dbConn
+    .prepare(
+      "SELECT COUNT(*) as count FROM emails WHERE status IN ('Open', 'In Progress') AND (response_count IS NULL OR response_count = 0)"
+    )
+    .get().count;
+
   const avgRow = dbConn
     .prepare('SELECT AVG(distress_score) as avg_score FROM emails WHERE distress_score IS NOT NULL')
     .get();
@@ -139,10 +311,17 @@ function getDashboardStats() {
     tone_breakdown[row.tone_label] = row.count;
   }
 
+  const totalResponses = dbConn
+    .prepare('SELECT COUNT(*) as count FROM ticket_responses')
+    .get().count;
+
   return {
     total,
     open,
     critical,
+    closed,
+    awaiting_response: awaiting,
+    total_responses: totalResponses,
     avg_distress_score,
     top_escalation_risks,
     tone_breakdown,
@@ -165,6 +344,12 @@ module.exports = {
   updateEmail,
   deleteEmail,
   getDashboardStats,
+  getTicketThread,
+  insertResponse,
+  getResponses,
+  getEvents,
+  recordEvent,
+  generateTicketNumber,
   closeDb,
   DB_PATH,
 };
