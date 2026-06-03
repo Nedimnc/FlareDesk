@@ -46,7 +46,7 @@
     .stat-card .num{font-family:'IBM Plex Mono',monospace;font-size:1.45rem;font-weight:700}
     .stat-card .label{color:var(--muted);font-size:.78rem;margin-top:.2rem;font-weight:600}
     .content{flex:1;padding:1.25rem;display:grid;gap:1rem;min-width:0}
-    .hero{display:grid;grid-template-columns:minmax(340px,1.1fr) minmax(320px,.9fr);gap:1rem;align-items:start}
+    .hero{display:grid;grid-template-columns:1fr;gap:1rem;align-items:start}
     .hero>*{min-width:0}
     .hero h1{font-size:clamp(1.65rem,3vw,2.4rem);margin:.15rem 0 .4rem}
     .hero p{color:var(--muted);line-height:1.55;margin:0;max-width:72ch}
@@ -113,6 +113,7 @@
     .reply-box label{display:block;font-weight:700;color:var(--muted);margin:.75rem 0 .35rem}
     textarea{width:100%;min-height:110px;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:.75rem;border-radius:12px;resize:vertical}
     .btn-row{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.75rem;align-items:center}
+    .reply-box #sendReply{min-width:130px}
     .status-select{background:var(--surface);border:1px solid var(--border);color:var(--text);padding:.65rem;border-radius:12px;min-height:44px}
     .hidden{display:none!important}
     .live-region{position:fixed;right:1rem;bottom:1rem;z-index:250;background:var(--text);color:var(--bg);padding:.75rem 1rem;border-radius:14px;box-shadow:var(--shadow);max-width:min(420px,calc(100vw - 2rem))}
