@@ -91,7 +91,7 @@
     .chip{background:var(--surface-2);border:1px solid var(--border);color:var(--text);padding:.55rem .75rem;font-weight:700}
     .overlay{position:fixed;inset:0;background:rgba(15,23,42,.55);opacity:0;pointer-events:none;transition:opacity .2s;z-index:99}
     .overlay.show{opacity:1;pointer-events:auto}
-    .detail-panel{position:fixed;top:0;right:0;width:min(640px,100vw);height:100vh;transform:translateX(100%);transition:transform .25s ease;z-index:100;display:flex;flex-direction:column;box-shadow:var(--shadow)}
+    .detail-panel{position:fixed;top:.75rem;right:.75rem;bottom:.75rem;width:min(640px,calc(100vw - 1.5rem));transform:translateX(calc(100% + 1rem));transition:transform .25s ease;z-index:100;display:flex;flex-direction:column;box-shadow:var(--shadow);border-radius:20px;overflow:hidden}
     .detail-panel.open{transform:translateX(0)}
     .detail-header{padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:grid;gap:.55rem}
     .detail-title-row{display:flex;justify-content:space-between;gap:1rem;align-items:start}
@@ -304,7 +304,7 @@
     function closeDetail(){$('detailPanel').classList.remove('open');$('detailPanel').setAttribute('aria-hidden','true');$('overlay').classList.remove('show');selectedId=null;renderTable();announce('Ticket details closed')}
     async function patchTicket(fields){if(!selectedId)return;await api('/api/emails/'+selectedId,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(fields)});await loadEmails();thread=await api('/api/emails/'+selectedId+'/thread');renderThread();await loadDashboard();announce('Ticket updated')}
     function setActiveTab(name){document.querySelectorAll('.tab').forEach(tab=>{const active=tab.dataset.tab===name;tab.classList.toggle('active',active);tab.setAttribute('aria-selected',String(active))});$('tabConversation').classList.toggle('hidden',name!=='conversation');$('tabActivity').classList.toggle('hidden',name!=='activity')}
-    $('themeToggle').onclick=()=>setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');
+    $('themeToggle').onclick=()=>{const current=document.documentElement.getAttribute('data-theme')||'light';setTheme(current==='dark'?'light':'dark')};
     $('closeDetail').onclick=closeDetail;$('overlay').onclick=closeDetail;document.addEventListener('keydown',ev=>{if(ev.key==='Escape'&&$('detailPanel').classList.contains('open'))closeDetail()});
     document.querySelectorAll('.tab').forEach(tab=>tab.onclick=()=>setActiveTab(tab.dataset.tab));
     document.querySelectorAll('.reply-tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.reply-tab').forEach(x=>{x.classList.remove('active');x.setAttribute('aria-pressed','false')});b.classList.add('active');b.setAttribute('aria-pressed','true');replyInternal=b.dataset.reply==='internal'});
