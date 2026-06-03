@@ -147,6 +147,10 @@ function insertEmail(row) {
   `);
   const result = stmt.run({
     channel: 'manual',
+    assigned_to: 'Unassigned',
+    status: 'Open',
+    received_at: new Date().toISOString(),
+    analyzed_at: new Date().toISOString(),
     message_id: null,
     in_reply_to: null,
     email_references: null,
