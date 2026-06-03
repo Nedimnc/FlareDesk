@@ -1,0 +1,39 @@
+{
+  "name": "flaredesk",
+  "version": "1.0.0",
+  "description": "B2B SaaS support email distress triage",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "seed": "node server/seed.js",
+    "test": "jest --forceExit --detectOpenHandles"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nedimnc/FlareDesk.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Nedimnc/FlareDesk/issues"
+  },
+  "homepage": "https://github.com/Nedimnc/FlareDesk#readme",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.100.1",
+    "better-sqlite3": "^12.10.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.5.2",
+    "helmet": "^8.2.0",
+    "validator": "^13.15.35"
+  },
+  "devDependencies": {
+    "jest": "^30.4.2",
+    "supertest": "^7.2.2"
+  },
+  "jest": {
+    "testEnvironment": "node"
+  }
+}
