@@ -3,223 +3,321 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FlareDesk — Support Command Center</title>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <title>FlareDesk - Support Command Center</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
-    :root{--bg:#0a0f1e;--panel:#111827;--border:#1e293b;--teal:#00d4aa;--red:#ff4757;--amber:#ffa502;--muted:#8892a4;--text:#e2e8f0;--purple:#a78bfa}
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;animation:fadeIn .5s ease}
-    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
-    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
-    .app{display:grid;grid-template-columns:280px 1fr;min-height:100vh}
-    .sidebar{background:var(--panel);border-right:1px solid var(--border);padding:1.25rem;display:flex;flex-direction:column;gap:1rem}
-    .logo{font-size:1.2rem;font-weight:600;color:var(--teal)}
-    .logo small{display:block;color:var(--muted);font-size:.7rem;font-weight:400;margin-top:.2rem}
-    .arch-link{font-size:.75rem;color:var(--purple);text-decoration:none;border:1px solid var(--border);padding:.5rem;border-radius:6px}
-    .arch-link:hover{border-color:var(--purple)}
-    .filter-group label{display:block;font-size:.65rem;text-transform:uppercase;color:var(--muted);margin-bottom:.3rem}
-    .filter-group select{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:.45rem;border-radius:6px}
-    .mini-stats{display:grid;gap:.5rem}
-    .mini-stat{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:.6rem}
-    .mini-stat .val{font-family:'IBM Plex Mono',monospace;font-size:1.1rem;color:var(--teal)}
-    .mini-stat .lbl{font-size:.65rem;color:var(--muted)}
-    .main{display:flex;flex-direction:column}
-    .topbar{display:grid;grid-template-columns:repeat(6,1fr);gap:.75rem;padding:1rem 1.25rem;border-bottom:1px solid var(--border)}
-    .stat-card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:.75rem}
-    .stat-card .num{font-family:'IBM Plex Mono',monospace;font-size:1.35rem;font-weight:600}
-    .stat-card .label{color:var(--muted);font-size:.7rem;margin-top:.15rem}
-    .content{flex:1;padding:1rem 1.25rem;overflow:auto}
-    .banner{background:linear-gradient(90deg,rgba(0,212,170,.12),rgba(167,139,250,.12));border:1px solid var(--border);border-radius:8px;padding:.6rem 1rem;font-size:.8rem;color:var(--muted);margin-bottom:1rem}
-    .banner strong{color:var(--teal)}
-    table{width:100%;border-collapse:collapse;font-size:.82rem}
-    th{text-align:left;color:var(--muted);font-size:.62rem;text-transform:uppercase;padding:.55rem;border-bottom:1px solid var(--border);cursor:pointer}
-    td{padding:.55rem;border-bottom:1px solid var(--border);vertical-align:middle}
-    tr{cursor:pointer;transition:background .15s}
-    tr:hover{background:rgba(0,212,170,.05)}
-    tr.active{background:rgba(0,212,170,.12)}
+    :root{color-scheme:light;--bg:#f6f8fb;--surface:#fff;--surface-2:#eef3f8;--sidebar:#fff;--border:#cbd5e1;--text:#111827;--muted:#475569;--accent:#047857;--accent-strong:#065f46;--accent-soft:#d1fae5;--danger:#b91c1c;--danger-soft:#fee2e2;--warn:#92400e;--warn-soft:#fef3c7;--info:#1d4ed8;--info-soft:#dbeafe;--purple:#6d28d9;--purple-soft:#ede9fe;--shadow:0 18px 45px rgba(15,23,42,.14);--focus:#2563eb}
+    [data-theme="dark"]{color-scheme:dark;--bg:#07111f;--surface:#111827;--surface-2:#0b1628;--sidebar:#0f172a;--border:#334155;--text:#f8fafc;--muted:#cbd5e1;--accent:#34d399;--accent-strong:#6ee7b7;--accent-soft:#064e3b;--danger:#f87171;--danger-soft:#451a1a;--warn:#fbbf24;--warn-soft:#422006;--info:#93c5fd;--info-soft:#172554;--purple:#c4b5fd;--purple-soft:#312e81;--shadow:0 22px 50px rgba(0,0,0,.42);--focus:#facc15}
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{margin:0;font-family:'IBM Plex Sans',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+    button,input,select,textarea{font:inherit}
+    button{cursor:pointer}
+    a{color:var(--info)}
+    code{font-family:'IBM Plex Mono',monospace}
+    :focus-visible{outline:3px solid var(--focus);outline-offset:3px}
+    .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+    .skip-link{position:absolute;left:1rem;top:.75rem;z-index:300;background:var(--accent);color:#fff;padding:.7rem 1rem;border-radius:999px;transform:translateY(-160%);transition:transform .15s ease}
+    .skip-link:focus{transform:translateY(0)}
+    .app{display:grid;grid-template-columns:300px minmax(0,1fr);min-height:100vh}
+    .sidebar{background:var(--sidebar);border-right:1px solid var(--border);padding:1.25rem;display:flex;flex-direction:column;gap:1rem;position:sticky;top:0;height:100vh;overflow:auto}
+    .brand{display:flex;gap:.75rem;align-items:center}
+    .brand-mark{width:42px;height:42px;border-radius:14px;background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff;display:grid;place-items:center;font-weight:700}
+    .logo{font-size:1.2rem;font-weight:700;letter-spacing:.04em}
+    .logo small{display:block;color:var(--muted);font-size:.78rem;font-weight:500;letter-spacing:0;margin-top:.15rem}
+    .theme-toggle,.arch-link,.btn,.chip{border-radius:999px;min-height:44px}
+    .theme-toggle,.arch-link{border:1px solid var(--border);background:var(--surface);color:var(--text);padding:.65rem .8rem;text-decoration:none;font-weight:600;text-align:center}
+    .theme-toggle:hover,.arch-link:hover{border-color:var(--accent)}
+    .nav-card,.submit-panel,.queue-card,.banner,.stat-card,.mini-stat,.detail-panel{background:var(--surface);border:1px solid var(--border);box-shadow:0 1px 0 rgba(15,23,42,.03)}
+    .nav-card{border-radius:18px;padding:1rem;display:grid;gap:.85rem}
+    .section-title{font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700}
+    .filter-group{display:grid;gap:.35rem}
+    .filter-group label{font-size:.82rem;color:var(--muted);font-weight:700}
+    .field{width:100%;background:var(--surface-2);border:1px solid var(--border);color:var(--text);padding:.75rem .85rem;border-radius:12px;min-height:44px}
+    .filter-actions{display:flex;gap:.5rem;flex-wrap:wrap}
+    .mini-stats{display:grid;gap:.65rem}
+    .mini-stat{border-radius:14px;padding:.8rem}
+    .mini-stat .val{font-family:'IBM Plex Mono',monospace;font-size:1.3rem;color:var(--accent);font-weight:700}
+    .mini-stat .lbl{font-size:.78rem;color:var(--muted);margin-top:.15rem}
+    .main{display:flex;flex-direction:column;min-width:0}
+    .topbar{display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:.75rem;padding:1rem 1.25rem;border-bottom:1px solid var(--border);background:rgba(255,255,255,.35);backdrop-filter:blur(12px);position:sticky;top:0;z-index:20}
+    [data-theme="dark"] .topbar{background:rgba(7,17,31,.7)}
+    .stat-card{border-radius:16px;padding:.85rem}
+    .stat-card .num{font-family:'IBM Plex Mono',monospace;font-size:1.45rem;font-weight:700}
+    .stat-card .label{color:var(--muted);font-size:.78rem;margin-top:.2rem;font-weight:600}
+    .content{flex:1;padding:1.25rem;display:grid;gap:1rem;min-width:0}
+    .hero{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:1rem;align-items:start}
+    .hero h1{font-size:clamp(1.65rem,3vw,2.4rem);margin:.15rem 0 .4rem}
+    .hero p{color:var(--muted);line-height:1.55;margin:0;max-width:72ch}
+    .banner{border-radius:18px;padding:1rem 1.1rem;color:var(--muted);line-height:1.5}
+    .banner strong{color:var(--accent-strong)}
+    .submit-panel{border-radius:18px;overflow:hidden}
+    .submit-toggle{width:100%;text-align:left;padding:1rem 1.1rem;background:transparent;border:0;color:var(--accent-strong);font-weight:700;display:flex;justify-content:space-between;gap:1rem;align-items:center}
+    .submit-form{display:none;padding:0 1.1rem 1.1rem;grid-template-columns:1fr 1fr;gap:.8rem}
+    .submit-form.open{display:grid}
+    .submit-form .full{grid-column:1/-1}
+    .queue-card{border-radius:20px;overflow:hidden}
+    .queue-header{display:flex;justify-content:space-between;gap:1rem;align-items:center;padding:1rem 1.1rem;border-bottom:1px solid var(--border)}
+    .queue-header h2{margin:0;font-size:1.05rem}
+    .queue-count{color:var(--muted);font-size:.88rem}
+    .table-wrap{overflow:auto}
+    table{width:100%;border-collapse:collapse;font-size:.9rem}
+    caption{text-align:left;padding:0 1.1rem 1rem;color:var(--muted)}
+    th{text-align:left;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--border);background:var(--surface)}
+    th,td{padding:.8rem .75rem;vertical-align:middle}
+    tbody tr{border-bottom:1px solid var(--border);transition:background .15s ease}
+    tbody tr[tabindex]{cursor:pointer}
+    tbody tr:hover,tbody tr:focus-visible{background:var(--surface-2)}
+    tr.active{background:var(--accent-soft)}
     tr.highlight{animation:flash 1.5s ease}
-    @keyframes flash{0%{background:rgba(0,212,170,.35)}100%{background:transparent}}
-    .ticket-id{font-family:'IBM Plex Mono',monospace;font-size:.72rem;color:var(--purple)}
-    .badge{display:inline-block;padding:.15rem .45rem;border-radius:999px;font-size:.68rem;font-weight:600}
-    .tone-Furious{background:rgba(255,71,87,.2);color:var(--red)}
-    .tone-Frustrated{background:rgba(255,165,2,.2);color:var(--amber)}
-    .tone-Anxious{background:rgba(255,165,2,.15);color:#f1c40f}
-    .tone-Neutral{background:rgba(136,146,164,.2);color:var(--muted)}
-    .tone-Satisfied{background:rgba(0,212,170,.2);color:var(--teal)}
-    .prio-CRITICAL{background:rgba(255,71,87,.25);color:var(--red);animation:pulse 1.2s infinite}
-    .prio-HIGH{background:rgba(255,165,2,.2);color:var(--amber)}
-    .prio-MEDIUM{background:rgba(255,165,2,.12);color:#f1c40f}
-    .prio-LOW{background:rgba(136,146,164,.2);color:var(--muted)}
-    .score-bar{width:70px;height:7px;border-radius:4px;background:#1e293b;overflow:hidden;display:inline-block;vertical-align:middle}
-    .score-bar-fill{height:100%;border-radius:4px}
-    .detail-panel{position:fixed;top:0;right:0;width:min(520px,100vw);height:100vh;background:var(--panel);border-left:1px solid var(--border);transform:translateX(100%);transition:transform .3s ease;z-index:100;display:flex;flex-direction:column}
-    .detail-panel.open{transform:translateX(0)}
-    .detail-header{padding:1rem 1.25rem;border-bottom:1px solid var(--border)}
-    .detail-header h2{font-size:.95rem;margin:.4rem 0}
-    .detail-tabs{display:flex;gap:.5rem;padding:0 1.25rem;border-bottom:1px solid var(--border)}
-    .tab{padding:.6rem .8rem;background:none;border:none;color:var(--muted);cursor:pointer;font-family:inherit;font-size:.8rem;border-bottom:2px solid transparent}
-    .tab.active{color:var(--teal);border-bottom-color:var(--teal)}
-    .detail-body{flex:1;overflow-y:auto;padding:1rem 1.25rem;display:flex;flex-direction:column;gap:.75rem}
-    .thread-msg{border-radius:8px;padding:.75rem;border:1px solid var(--border)}
-    .thread-msg.inbound{background:var(--bg)}
-    .thread-msg.outbound{border-color:rgba(0,212,170,.3);background:rgba(0,212,170,.06)}
-    .thread-msg.internal{border-color:rgba(167,139,250,.3);background:rgba(167,139,250,.08)}
-    .thread-meta{font-size:.68rem;color:var(--muted);margin-bottom:.35rem;font-family:'IBM Plex Mono',monospace}
-    .thread-text{font-size:.85rem;line-height:1.45;white-space:pre-wrap}
-    .event-item{font-size:.78rem;padding:.4rem 0;border-bottom:1px dashed var(--border);color:var(--muted)}
-    .event-item strong{color:var(--text)}
-    .reply-box{border-top:1px solid var(--border);padding:1rem 1.25rem;background:#0d1324}
-    .reply-tabs{display:flex;gap:.5rem;margin-bottom:.5rem}
-    .reply-tab{padding:.35rem .6rem;border:1px solid var(--border);background:transparent;color:var(--muted);border-radius:4px;cursor:pointer;font-size:.75rem}
-    .reply-tab.active{background:var(--teal);color:#041018;border-color:var(--teal)}
-    textarea{width:100%;min-height:80px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:.6rem;border-radius:6px;font-family:inherit;resize:vertical}
-    .btn{background:var(--teal);color:#041018;border:none;padding:.55rem 1rem;border-radius:6px;font-weight:600;cursor:pointer;font-family:inherit;margin-top:.5rem}
-    .btn-secondary{background:transparent;border:1px solid var(--border);color:var(--text)}
-    .btn-row{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.5rem}
-    .status-select{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:.4rem;border-radius:4px;font-size:.75rem}
-    .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);opacity:0;pointer-events:none;transition:opacity .3s;z-index:99}
+    .sort-btn{border:0;background:transparent;color:inherit;text-transform:inherit;letter-spacing:inherit;font-weight:700;padding:.3rem 0}
+    .ticket-id{font-family:'IBM Plex Mono',monospace;font-size:.82rem;color:var(--purple);font-weight:700}
+    .sender-cell{max-width:18ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .subject-cell{min-width:18rem}
+    .badge{display:inline-flex;align-items:center;gap:.25rem;padding:.28rem .58rem;border-radius:999px;font-size:.75rem;font-weight:700;white-space:nowrap;border:1px solid transparent}
+    .tone-Furious,.prio-CRITICAL{background:var(--danger-soft);color:var(--danger);border-color:color-mix(in srgb,var(--danger) 30%,transparent)}
+    .tone-Frustrated,.tone-Anxious,.prio-HIGH,.prio-MEDIUM{background:var(--warn-soft);color:var(--warn);border-color:color-mix(in srgb,var(--warn) 30%,transparent)}
+    .tone-Neutral,.prio-LOW{background:var(--surface-2);color:var(--muted);border-color:var(--border)}
+    .tone-Satisfied{background:var(--accent-soft);color:var(--accent-strong);border-color:color-mix(in srgb,var(--accent) 30%,transparent)}
+    .score{display:flex;align-items:center;gap:.55rem}
+    .score-bar{width:84px;height:10px;border-radius:999px;background:var(--surface-2);overflow:hidden;border:1px solid var(--border)}
+    .score-bar-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,var(--accent),var(--warn),var(--danger))}
+    .score-num{font-family:'IBM Plex Mono',monospace;font-size:.82rem;font-weight:700}
+    .btn{background:var(--accent);color:#fff;border:1px solid var(--accent);padding:.7rem 1rem;font-weight:700}
+    .btn:hover{background:var(--accent-strong)}
+    .btn-secondary{background:var(--surface);border:1px solid var(--border);color:var(--text);padding:.65rem .85rem}
+    .btn-secondary:hover{border-color:var(--accent)}
+    .chip{background:var(--surface-2);border:1px solid var(--border);color:var(--text);padding:.55rem .75rem;font-weight:700}
+    .overlay{position:fixed;inset:0;background:rgba(15,23,42,.55);opacity:0;pointer-events:none;transition:opacity .2s;z-index:99}
     .overlay.show{opacity:1;pointer-events:auto}
-    .submit-panel{background:var(--panel);border:1px solid var(--border);border-radius:8px;margin-bottom:1rem}
-    .submit-toggle{width:100%;text-align:left;padding:.75rem 1rem;background:transparent;border:none;color:var(--teal);font-weight:600;cursor:pointer}
-    .submit-form{display:none;padding:0 1rem 1rem;flex-direction:column;gap:.5rem}
-    .submit-form.open{display:flex}
-    .submit-form input,.submit-form textarea{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:.5rem;border-radius:6px}
+    .detail-panel{position:fixed;top:0;right:0;width:min(640px,100vw);height:100vh;transform:translateX(100%);transition:transform .25s ease;z-index:100;display:flex;flex-direction:column;box-shadow:var(--shadow)}
+    .detail-panel.open{transform:translateX(0)}
+    .detail-header{padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:grid;gap:.55rem}
+    .detail-title-row{display:flex;justify-content:space-between;gap:1rem;align-items:start}
+    .detail-header h2{font-size:1.25rem;margin:.25rem 0 0;line-height:1.25}
+    .detail-meta{font-size:.88rem;color:var(--muted);display:flex;gap:.45rem;flex-wrap:wrap;align-items:center}
+    .detail-tabs,.reply-tabs{display:flex;gap:.5rem;flex-wrap:wrap}
+    .detail-tabs{padding:.75rem 1.25rem;border-bottom:1px solid var(--border)}
+    .tab,.reply-tab{padding:.65rem .85rem;background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:999px;font-weight:700}
+    .tab[aria-selected="true"],.reply-tab.active{background:var(--accent);border-color:var(--accent);color:#fff}
+    .detail-body{flex:1;overflow-y:auto;padding:1rem 1.25rem;display:flex;flex-direction:column;gap:.85rem}
+    .thread-msg{border-radius:16px;padding:.9rem;border:1px solid var(--border);background:var(--surface-2)}
+    .thread-msg.outbound{border-color:var(--accent);background:var(--accent-soft)}
+    .thread-msg.internal{border-color:var(--purple);background:var(--purple-soft)}
+    .thread-meta{font-size:.78rem;color:var(--muted);margin-bottom:.45rem;font-family:'IBM Plex Mono',monospace;line-height:1.4}
+    .thread-text{font-size:.95rem;line-height:1.55;white-space:pre-wrap}
+    .event-item{font-size:.9rem;padding:.65rem 0;border-bottom:1px dashed var(--border);color:var(--muted);line-height:1.5}
+    .event-item strong{color:var(--text)}
+    .reply-box{border-top:1px solid var(--border);padding:1rem 1.25rem;background:var(--surface-2)}
+    .reply-box label{display:block;font-weight:700;color:var(--muted);margin:.75rem 0 .35rem}
+    textarea{width:100%;min-height:110px;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:.75rem;border-radius:12px;resize:vertical}
+    .btn-row{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.75rem;align-items:center}
+    .status-select{background:var(--surface);border:1px solid var(--border);color:var(--text);padding:.65rem;border-radius:12px;min-height:44px}
     .hidden{display:none!important}
-    .spinner{display:inline-block;width:12px;height:12px;border:2px solid var(--border);border-top-color:var(--teal);border-radius:50%;animation:spin .7s linear infinite}
+    .live-region{position:fixed;right:1rem;bottom:1rem;z-index:250;background:var(--text);color:var(--bg);padding:.75rem 1rem;border-radius:14px;box-shadow:var(--shadow);max-width:min(420px,calc(100vw - 2rem))}
+    .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px;margin-right:.35rem}
     @keyframes spin{to{transform:rotate(360deg)}}
+    @keyframes flash{0%{background:var(--accent-soft)}100%{background:transparent}}
+    @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.001ms!important}}
+    @media (max-width:1100px){.app{grid-template-columns:1fr}.sidebar{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--border)}.topbar{grid-template-columns:repeat(3,minmax(120px,1fr));position:relative}.hero{grid-template-columns:1fr}.submit-form{grid-template-columns:1fr}}
+    @media (max-width:700px){.content,.topbar,.sidebar{padding:.85rem}.topbar{grid-template-columns:repeat(2,minmax(0,1fr))}.queue-header{align-items:flex-start;flex-direction:column}.subject-cell{min-width:14rem}}
   </style>
 </head>
 <body>
-  <div class="overlay" id="overlay"></div>
+  <a class="skip-link" href="#mainContent">Skip to ticket queue</a>
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
   <div class="app">
-    <aside class="sidebar">
-      <div class="logo">FLAREDESK<small>Ticket + distress command center</small></div>
-      <a class="arch-link" href="/ARCHITECTURE.md" target="_blank">📋 Product roadmap & email integration plan</a>
-      <div class="filter-group"><label>Status</label>
-        <select id="filterStatus"><option value="">All</option><option>Open</option><option>In Progress</option><option>Waiting on Customer</option><option>Resolved</option><option>Closed</option></select>
+    <aside class="sidebar" aria-label="Dashboard controls">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">FD</div>
+        <div class="logo">FLAREDESK<small>Support command center</small></div>
       </div>
-      <div class="filter-group"><label>Priority</label>
-        <select id="filterPriority"><option value="">All</option><option>CRITICAL</option><option>HIGH</option><option>MEDIUM</option><option>LOW</option></select>
-      </div>
-      <div class="filter-group"><label>Tone</label>
-        <select id="filterTone"><option value="">All</option><option>Furious</option><option>Frustrated</option><option>Anxious</option><option>Neutral</option><option>Satisfied</option></select>
-      </div>
-      <div class="mini-stats" id="miniStats"></div>
-    </aside>
-    <div class="main">
-      <div class="topbar" id="topbar"></div>
-      <div class="content">
-        <div class="banner" id="deliveryBanner">Each inbound email is a <strong>ticket</strong> (ID like FD-2026-0001) with a full conversation thread, agent replies, internal notes, and activity log. <strong>Email auto-ingest</strong> is available at <code>POST /api/webhooks/inbound-email</code>.</div>
-        <div class="submit-panel">
-          <button type="button" class="submit-toggle" id="submitToggle">+ Simulate inbound email (manual / pre-integration)</button>
-          <form class="submit-form" id="submitForm">
-            <input type="email" id="sender" placeholder="Sender email" required />
-            <input type="text" id="subject" placeholder="Subject" required />
-            <textarea id="body" placeholder="Email body..." required></textarea>
-            <button type="submit" class="btn" id="submitBtn">Create ticket + analyze</button>
-          </form>
+      <button type="button" class="theme-toggle" id="themeToggle" aria-pressed="false">Use dark mode</button>
+      <a class="arch-link" href="/ARCHITECTURE.md" target="_blank" rel="noreferrer">Product roadmap and email plan</a>
+      <section class="nav-card" aria-labelledby="filtersTitle">
+        <div class="section-title" id="filtersTitle">Find tickets</div>
+        <div class="filter-group">
+          <label for="searchInput">Search sender, subject, or ticket ID</label>
+          <input class="field" type="search" id="searchInput" autocomplete="off" placeholder="Search tickets" />
         </div>
-        <table>
-          <thead><tr>
-            <th data-sort="distress_score">Distress</th>
-            <th>Ticket</th>
-            <th data-sort="priority">Priority</th>
-            <th>Sender</th>
-            <th>Subject</th>
-            <th>Tone</th>
-            <th>Replies</th>
-            <th>Status</th>
-          </tr></thead>
-          <tbody id="emailTable"><tr><td colspan="8">Loading...</td></tr></tbody>
-        </table>
+        <div class="filter-group">
+          <label for="filterStatus">Status</label>
+          <select class="field" id="filterStatus">
+            <option value="">All statuses</option><option>Open</option><option>In Progress</option><option>Waiting on Customer</option><option>Resolved</option><option>Closed</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="filterPriority">Priority</label>
+          <select class="field" id="filterPriority">
+            <option value="">All priorities</option><option>CRITICAL</option><option>HIGH</option><option>MEDIUM</option><option>LOW</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="filterTone">Tone</label>
+          <select class="field" id="filterTone">
+            <option value="">All tones</option><option>Furious</option><option>Frustrated</option><option>Anxious</option><option>Neutral</option><option>Satisfied</option>
+          </select>
+        </div>
+        <div class="filter-actions">
+          <button type="button" class="chip" id="criticalOnly">Critical only</button>
+          <button type="button" class="chip" id="clearFilters">Clear filters</button>
+        </div>
+      </section>
+      <section class="mini-stats" id="miniStats" aria-label="Queue summary"></section>
+    </aside>
+    <main class="main" id="mainContent" tabindex="-1">
+      <section class="topbar" id="topbar" aria-label="Dashboard statistics"></section>
+      <div class="content">
+        <section class="hero" aria-labelledby="pageTitle">
+          <div>
+            <p class="section-title">Accessible triage workspace</p>
+            <h1 id="pageTitle">Navigate customer risk faster.</h1>
+            <p>Search, filter, triage, reply, and review activity from one keyboard-friendly queue. Color is paired with text labels, controls have visible focus states, and the theme follows your preference.</p>
+          </div>
+          <div class="banner" id="deliveryBanner">Each inbound email is a <strong>ticket</strong> with a full conversation thread, agent replies, internal notes, and activity log. <strong>Email auto-ingest</strong> is available at <code>POST /api/webhooks/inbound-email</code>.</div>
+        </section>
+        <section class="submit-panel" aria-labelledby="submitTitle">
+          <button type="button" class="submit-toggle" id="submitToggle" aria-expanded="false" aria-controls="submitForm">
+            <span id="submitTitle">Simulate inbound email</span>
+            <span aria-hidden="true">+</span>
+          </button>
+          <form class="submit-form" id="submitForm">
+            <div>
+              <label class="sr-only" for="sender">Sender email</label>
+              <input class="field" type="email" id="sender" placeholder="Sender email" autocomplete="email" required />
+            </div>
+            <div>
+              <label class="sr-only" for="subject">Subject</label>
+              <input class="field" type="text" id="subject" placeholder="Subject" required />
+            </div>
+            <div class="full">
+              <label class="sr-only" for="body">Email body</label>
+              <textarea id="body" placeholder="Email body..." required></textarea>
+            </div>
+            <div class="full">
+              <button type="submit" class="btn" id="submitBtn">Create ticket and analyze</button>
+            </div>
+          </form>
+        </section>
+        <section class="queue-card" aria-labelledby="queueTitle">
+          <div class="queue-header">
+            <div>
+              <h2 id="queueTitle">Ticket queue</h2>
+              <div class="queue-count" id="queueCount" aria-live="polite">Loading tickets...</div>
+            </div>
+            <button type="button" class="btn-secondary" id="refreshQueue">Refresh queue</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <caption class="sr-only">Support tickets. Press Enter or Space on a row to open details.</caption>
+              <thead>
+                <tr>
+                  <th scope="col"><button type="button" class="sort-btn" data-sort="distress_score" aria-label="Sort by distress score">Distress</button></th>
+                  <th scope="col">Ticket</th>
+                  <th scope="col"><button type="button" class="sort-btn" data-sort="priority" aria-label="Sort by priority">Priority</button></th>
+                  <th scope="col">Sender</th>
+                  <th scope="col">Subject</th>
+                  <th scope="col">Tone</th>
+                  <th scope="col">Replies</th>
+                  <th scope="col">Status</th>
+                </tr>
+              </thead>
+              <tbody id="emailTable"><tr><td colspan="8">Loading...</td></tr></tbody>
+            </table>
+          </div>
+        </section>
       </div>
-    </div>
+    </main>
   </div>
-  <aside class="detail-panel" id="detailPanel">
+  <aside class="detail-panel" id="detailPanel" role="dialog" aria-modal="true" aria-labelledby="detailSubject" aria-hidden="true">
     <div class="detail-header">
-      <button type="button" class="btn-secondary" id="closeDetail" style="margin:0;padding:.3rem .6rem;font-size:.75rem">✕ Close</button>
-      <div class="ticket-id" id="detailTicketId"></div>
-      <h2 id="detailSubject"></h2>
-      <div id="detailMeta" style="font-size:.75rem;color:var(--muted);margin-top:.35rem"></div>
-    </div>
-    <div class="detail-tabs">
-      <button type="button" class="tab active" data-tab="conversation">Conversation</button>
-      <button type="button" class="tab" data-tab="activity">Activity</button>
-    </div>
-    <div class="detail-body" id="tabConversation"></div>
-    <div class="detail-body hidden" id="tabActivity"></div>
-    <div class="reply-box" id="replyBox">
-      <div class="reply-tabs">
-        <button type="button" class="reply-tab active" data-reply="customer">Reply to customer</button>
-        <button type="button" class="reply-tab" data-reply="internal">Internal note</button>
+      <div class="detail-title-row">
+        <div>
+          <div class="ticket-id" id="detailTicketId"></div>
+          <h2 id="detailSubject">Ticket details</h2>
+        </div>
+        <button type="button" class="btn-secondary" id="closeDetail">Close</button>
       </div>
+      <div class="detail-meta" id="detailMeta"></div>
+    </div>
+    <div class="detail-tabs" role="tablist" aria-label="Ticket detail sections">
+      <button type="button" class="tab active" id="conversationTab" role="tab" aria-selected="true" aria-controls="tabConversation" data-tab="conversation">Conversation</button>
+      <button type="button" class="tab" id="activityTab" role="tab" aria-selected="false" aria-controls="tabActivity" data-tab="activity">Activity</button>
+    </div>
+    <div class="detail-body" id="tabConversation" role="tabpanel" aria-labelledby="conversationTab"></div>
+    <div class="detail-body hidden" id="tabActivity" role="tabpanel" aria-labelledby="activityTab"></div>
+    <div class="reply-box" id="replyBox">
+      <div class="reply-tabs" aria-label="Reply type">
+        <button type="button" class="reply-tab active" data-reply="customer" aria-pressed="true">Reply to customer</button>
+        <button type="button" class="reply-tab" data-reply="internal" aria-pressed="false">Internal note</button>
+      </div>
+      <label for="replyBody">Message</label>
       <textarea id="replyBody" placeholder="Type your response..."></textarea>
-      <button type="button" class="btn" id="sendReply">Send reply</button>
       <div class="btn-row">
+        <button type="button" class="btn" id="sendReply">Send reply</button>
+        <label class="sr-only" for="statusSelect">Ticket status</label>
         <select class="status-select" id="statusSelect">
           <option>Open</option><option>In Progress</option><option>Waiting on Customer</option><option>Resolved</option><option>Closed</option>
         </select>
-        <button type="button" class="btn btn-secondary" data-action="assign">Assign senior</button>
-        <button type="button" class="btn btn-secondary" data-action="waiting">Waiting on customer</button>
+        <button type="button" class="btn-secondary" data-action="assign">Assign senior</button>
+        <button type="button" class="btn-secondary" data-action="waiting">Waiting on customer</button>
       </div>
     </div>
   </aside>
+  <div class="live-region hidden" id="liveRegion" role="status" aria-live="polite"></div>
   <script>
-    let apiKey='', emailDeliveryMode='local', emails=[], thread=null, selectedId=null, highlightId=null;
-    let sortField='distress_score', sortAsc=false, replyInternal=false, activeTab='conversation';
+    let apiKey='',emailDeliveryMode='local',emails=[],thread=null,selectedId=null,highlightId=null;
+    let sortField='distress_score',sortAsc=false,replyInternal=false;
     const $=id=>document.getElementById(id);
+    const preferDark=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const storedTheme=localStorage.getItem('flaredesk-theme');
+    setTheme(storedTheme||(preferDark?'dark':'light'));
+
     async function api(path,opt={}){const r=await fetch(path,{...opt,headers:{Authorization:'Bearer '+apiKey,...(opt.headers||{})}});if(!r.ok)throw new Error(r.status);if(r.status===204)return null;return r.json()}
-    function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
-    function unesc(s){const d=document.createElement('div');d.innerHTML=s;return d.textContent}
-    function badge(c,t){return '<span class="badge '+c+'">'+t+'</span>'}
-    function scoreBar(n){const w=n/10*100;return '<span class="score-bar"><span class="score-bar-fill" style="width:'+w+'%;background:linear-gradient(90deg,#00d4aa,#ffa502,#ff4757)"></span></span> <span style="font-family:IBM Plex Mono;font-size:.7rem">'+n+'</span>'}
-    function filtered(){const st=$('filterStatus').value,pr=$('filterPriority').value,tn=$('filterTone').value;
-      return emails.filter(e=>(!st||e.status===st)&&(!pr||e.priority===pr)&&(!tn||e.tone_label===tn))
+    function esc(s){const d=document.createElement('div');d.textContent=s==null?'':String(s);return d.innerHTML}
+    function unesc(s){const d=document.createElement('div');d.innerHTML=s==null?'':String(s);return d.textContent}
+    function announce(message){$('liveRegion').textContent=message;$('liveRegion').classList.remove('hidden');clearTimeout(announce.timer);announce.timer=setTimeout(()=>$('liveRegion').classList.add('hidden'),3500)}
+    function setTheme(theme){document.documentElement.dataset.theme=theme;localStorage.setItem('flaredesk-theme',theme);const dark=theme==='dark';const btn=$('themeToggle');if(btn){btn.textContent=dark?'Use light mode':'Use dark mode';btn.setAttribute('aria-pressed',String(dark))}}
+    function badge(c,t){return '<span class="badge '+c+'">'+esc(t)+'</span>'}
+    function scoreBar(n){const score=Number(n)||0;const w=Math.max(0,Math.min(100,score/10*100));return '<div class="score" aria-label="Distress score '+score+' out of 10"><span class="score-bar" aria-hidden="true"><span class="score-bar-fill" style="width:'+w+'%"></span></span><span class="score-num">'+score+'</span></div>'}
+    function normalized(value){return unesc(value||'').toLowerCase()}
+    function filtered(){const st=$('filterStatus').value,pr=$('filterPriority').value,tn=$('filterTone').value,q=normalized($('searchInput').value);
+      return emails.filter(e=>(!st||e.status===st)&&(!pr||e.priority===pr)&&(!tn||e.tone_label===tn)&&(!q||[e.ticket_number,e.sender,e.subject,e.status,e.priority,e.tone_label].some(v=>normalized(v).includes(q))))
         .sort((a,b)=>{let av=a[sortField],bv=b[sortField];if(sortField==='received_at'){av=new Date(av);bv=new Date(bv)}return av<bv?sortAsc?-1:1:av>bv?sortAsc?1:-1:0})}
-    function renderTable(){const rows=filtered();
-      if(!rows.length){$('emailTable').innerHTML='<tr><td colspan="8">No tickets</td></tr>';return}
-      $('emailTable').innerHTML=rows.map(e=>{
-        const act=e.id===selectedId?' active':'', hl=e.id===highlightId?' highlight':'';
-        return '<tr data-id="'+e.id+'" class="'+act+hl+'"><td>'+scoreBar(e.distress_score)+'</td><td class="ticket-id">'+(e.ticket_number||'—')+'</td><td>'+badge('prio-'+e.priority,e.priority)+'</td><td>'+esc(unesc(e.sender))+'</td><td>'+esc(unesc(e.subject))+'</td><td>'+badge('tone-'+e.tone_label,e.tone_label)+'</td><td>'+(e.response_count||0)+'</td><td>'+e.status+'</td></tr>'}).join('');
-      document.querySelectorAll('#emailTable tr[data-id]').forEach(tr=>tr.onclick=()=>openDetail(+tr.dataset.id))}
-    async function loadDashboard(){const s=await api('/api/dashboard');
-      const items=[['Tickets',s.total],['Open',s.open],['Critical',s.critical],['Awaiting reply',s.awaiting_response],['Responses',s.total_responses],['Closed',s.closed]];
-      $('topbar').innerHTML=items.map(([l,n])=>'<div class="stat-card"><div class="num">'+n+'</div><div class="label">'+l+'</div></div>').join('');
-      $('miniStats').innerHTML='<div class="mini-stat"><div class="val">'+s.avg_distress_score+'</div><div class="lbl">Avg distress</div></div>'}
+    function renderTable(){const rows=filtered();$('queueCount').textContent=rows.length+' of '+emails.length+' tickets shown';
+      if(!rows.length){$('emailTable').innerHTML='<tr><td colspan="8">No tickets match your filters.</td></tr>';return}
+      $('emailTable').innerHTML=rows.map(e=>{const act=e.id===selectedId?' active':'',hl=e.id===highlightId?' highlight':'';
+        return '<tr data-id="'+e.id+'" class="'+act+hl+'" tabindex="0" role="button" aria-label="Open ticket '+esc(e.ticket_number||e.id)+', '+esc(unesc(e.subject))+'"><td>'+scoreBar(e.distress_score)+'</td><td class="ticket-id">'+esc(e.ticket_number||'-')+'</td><td>'+badge('prio-'+e.priority,e.priority)+'</td><td class="sender-cell">'+esc(unesc(e.sender))+'</td><td class="subject-cell">'+esc(unesc(e.subject))+'</td><td>'+badge('tone-'+e.tone_label,e.tone_label)+'</td><td>'+(e.response_count||0)+'</td><td>'+esc(e.status)+'</td></tr>'}).join('');
+      document.querySelectorAll('#emailTable tr[data-id]').forEach(tr=>{tr.onclick=()=>openDetail(+tr.dataset.id);tr.onkeydown=ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();openDetail(+tr.dataset.id)}}})}
+    async function loadDashboard(){const s=await api('/api/dashboard');const items=[['Tickets',s.total],['Open',s.open],['Critical',s.critical],['Awaiting reply',s.awaiting_response],['Responses',s.total_responses],['Closed',s.closed]];
+      $('topbar').innerHTML=items.map(([l,n])=>'<article class="stat-card"><div class="num">'+n+'</div><div class="label">'+l+'</div></article>').join('');
+      $('miniStats').innerHTML='<article class="mini-stat"><div class="val">'+s.avg_distress_score+'</div><div class="lbl">Average distress</div></article><article class="mini-stat"><div class="val">'+s.critical+'</div><div class="lbl">Critical active</div></article>'}
     async function loadEmails(){emails=await api('/api/emails?sort=distress_score&order=desc');renderTable()}
-    function renderThread(){const t=thread.ticket;
-      $('detailTicketId').textContent=t.ticket_number+' · '+t.channel+' channel';
-      $('detailSubject').textContent=unesc(t.subject);
-      $('detailMeta').innerHTML=esc(unesc(t.sender))+' · '+badge('prio-'+t.priority,t.priority)+' · '+badge('tone-'+t.tone_label,t.tone_label)+' · Risk: '+t.escalation_risk;
-      $('statusSelect').value=t.status;
+    function renderThread(){const t=thread.ticket;$('detailTicketId').textContent=(t.ticket_number||'Ticket')+' - '+t.channel+' channel';$('detailSubject').textContent=unesc(t.subject);
+      $('detailMeta').innerHTML='<span>'+esc(unesc(t.sender))+'</span>'+badge('prio-'+t.priority,t.priority)+badge('tone-'+t.tone_label,t.tone_label)+'<span>Risk: '+esc(t.escalation_risk||'None')+'</span>';$('statusSelect').value=t.status;
       const msgs=[{type:'inbound',author:t.sender,time:t.received_at,body:t.body,label:'Original inbound email',status:'received'},...thread.responses.map(r=>({type:r.is_internal?'internal':r.author_type==='customer'?'inbound':'outbound',author:r.author,time:r.created_at,body:r.body,label:r.is_internal?'Internal note':r.author_type==='customer'?'Customer reply':'Agent reply',status:r.delivery_status}))];
-      $('tabConversation').innerHTML='<p style="font-size:.8rem;color:var(--muted);margin-bottom:.5rem">'+esc(t.summary||'')+'</p>'+msgs.map(m=>'<div class="thread-msg '+m.type+'"><div class="thread-meta">'+m.label+' · '+esc(m.author)+' · '+new Date(m.time).toLocaleString()+' · '+m.status+'</div><div class="thread-text">'+esc(unesc(m.body))+'</div></div>').join('');
-      $('tabActivity').innerHTML=thread.events.slice().reverse().map(ev=>'<div class="event-item"><strong>'+ev.event_type+'</strong> — '+(ev.detail||'')+' <span style="opacity:.7">('+new Date(ev.created_at).toLocaleString()+')</span></div>').join('')}
-    async function openDetail(id){selectedId=id;thread=await api('/api/emails/'+id+'/thread');renderThread();$('detailPanel').classList.add('open');$('overlay').classList.add('show');renderTable();
-      if(thread.ticket.status==='Closed')$('replyBox').classList.add('hidden');else $('replyBox').classList.remove('hidden')}
-    function closeDetail(){$('detailPanel').classList.remove('open');$('overlay').classList.remove('show');selectedId=null;renderTable()}
-    async function patchTicket(fields){if(!selectedId)return;await api('/api/emails/'+selectedId,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(fields)});await loadEmails();thread=await api('/api/emails/'+selectedId+'/thread');renderThread();await loadDashboard()}
-    $('closeDetail').onclick=closeDetail;$('overlay').onclick=closeDetail;
-    document.querySelectorAll('.tab').forEach(tab=>tab.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));tab.classList.add('active');
-      $('tabConversation').classList.toggle('hidden',tab.dataset.tab!=='conversation');$('tabActivity').classList.toggle('hidden',tab.dataset.tab!=='activity')});
-    document.querySelectorAll('.reply-tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.reply-tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');replyInternal=b.dataset.reply==='internal'});
-    $('sendReply').onclick=async()=>{const body=$('replyBody').value.trim();if(!body||!selectedId)return;const btn=$('sendReply');btn.disabled=true;
-      try{await api('/api/emails/'+selectedId+'/responses',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({body,is_internal:replyInternal})});
-        $('replyBody').value='';await loadEmails();thread=await api('/api/emails/'+selectedId+'/thread');renderThread();await loadDashboard()}finally{btn.disabled=false}};
+      $('tabConversation').innerHTML='<p style="color:var(--muted);line-height:1.5;margin:0">'+esc(t.summary||'')+'</p>'+msgs.map(m=>'<article class="thread-msg '+m.type+'"><div class="thread-meta">'+esc(m.label)+' - '+esc(unesc(m.author))+' - '+new Date(m.time).toLocaleString()+' - '+esc(m.status)+'</div><div class="thread-text">'+esc(unesc(m.body))+'</div></article>').join('');
+      $('tabActivity').innerHTML=thread.events.slice().reverse().map(ev=>'<div class="event-item"><strong>'+esc(ev.event_type)+'</strong> - '+esc(ev.detail||'')+' <span>('+new Date(ev.created_at).toLocaleString()+')</span></div>').join('')}
+    async function openDetail(id){selectedId=id;thread=await api('/api/emails/'+id+'/thread');renderThread();$('detailPanel').classList.add('open');$('detailPanel').setAttribute('aria-hidden','false');$('overlay').classList.add('show');renderTable();if(thread.ticket.status==='Closed')$('replyBox').classList.add('hidden');else $('replyBox').classList.remove('hidden');$('closeDetail').focus();announce('Opened '+(thread.ticket.ticket_number||'ticket'))}
+    function closeDetail(){$('detailPanel').classList.remove('open');$('detailPanel').setAttribute('aria-hidden','true');$('overlay').classList.remove('show');selectedId=null;renderTable();announce('Ticket details closed')}
+    async function patchTicket(fields){if(!selectedId)return;await api('/api/emails/'+selectedId,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(fields)});await loadEmails();thread=await api('/api/emails/'+selectedId+'/thread');renderThread();await loadDashboard();announce('Ticket updated')}
+    function setActiveTab(name){document.querySelectorAll('.tab').forEach(tab=>{const active=tab.dataset.tab===name;tab.classList.toggle('active',active);tab.setAttribute('aria-selected',String(active))});$('tabConversation').classList.toggle('hidden',name!=='conversation');$('tabActivity').classList.toggle('hidden',name!=='activity')}
+    $('themeToggle').onclick=()=>setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');
+    $('closeDetail').onclick=closeDetail;$('overlay').onclick=closeDetail;document.addEventListener('keydown',ev=>{if(ev.key==='Escape'&&$('detailPanel').classList.contains('open'))closeDetail()});
+    document.querySelectorAll('.tab').forEach(tab=>tab.onclick=()=>setActiveTab(tab.dataset.tab));
+    document.querySelectorAll('.reply-tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.reply-tab').forEach(x=>{x.classList.remove('active');x.setAttribute('aria-pressed','false')});b.classList.add('active');b.setAttribute('aria-pressed','true');replyInternal=b.dataset.reply==='internal'});
+    $('sendReply').onclick=async()=>{const body=$('replyBody').value.trim();if(!body||!selectedId){announce('Add a message before sending');return}const btn=$('sendReply');btn.disabled=true;try{await api('/api/emails/'+selectedId+'/responses',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({body,is_internal:replyInternal})});$('replyBody').value='';await loadEmails();thread=await api('/api/emails/'+selectedId+'/thread');renderThread();await loadDashboard();announce(replyInternal?'Internal note added':'Reply saved')}finally{btn.disabled=false}};
     $('statusSelect').onchange=()=>patchTicket({status:$('statusSelect').value});
-    document.querySelectorAll('[data-action]').forEach(b=>b.onclick=()=>{
-      if(b.dataset.action==='assign')patchTicket({assigned_to:'Senior Agent',status:'In Progress'});
-      if(b.dataset.action==='waiting')patchTicket({status:'Waiting on Customer'})});
-    $('submitToggle').onclick=()=>$('submitForm').classList.toggle('open');
-    $('submitForm').onsubmit=async ev=>{ev.preventDefault();const btn=$('submitBtn');btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Analyzing...';
-      try{const c=await api('/api/emails',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sender:$('sender').value,subject:$('subject').value,body:$('body').value})});
-        highlightId=c.id;$('submitForm').reset();await loadEmails();await loadDashboard();setTimeout(()=>highlightId=null,2000)}catch(e){alert('Failed')}finally{btn.disabled=false;btn.textContent='Create ticket + analyze'}};
-    ['filterStatus','filterPriority','filterTone'].forEach(id=>$(id).onchange=renderTable);
-    document.querySelectorAll('th[data-sort]').forEach(th=>th.onclick=()=>{const f=th.dataset.sort;if(sortField===f)sortAsc=!sortAsc;else{sortField=f;sortAsc=false}renderTable()});
-    async function init(){const cfg=await fetch('/api/config').then(r=>r.json());apiKey=cfg.apiKey;emailDeliveryMode=cfg.emailDeliveryMode||'local';
-      $('deliveryBanner').innerHTML+=' <strong>Outbound:</strong> '+(emailDeliveryMode==='mailgun'?'Mailgun delivery is configured.':'local demo mode stores replies and generates threadable message IDs until Mailgun keys are added.');
-      await loadDashboard();await loadEmails();setInterval(loadEmails,30000)}
-    init().catch(()=>$('emailTable').innerHTML='<tr><td colspan="8">API connection failed</td></tr>');
+    document.querySelectorAll('[data-action]').forEach(b=>b.onclick=()=>{if(b.dataset.action==='assign')patchTicket({assigned_to:'Senior Agent',status:'In Progress'});if(b.dataset.action==='waiting')patchTicket({status:'Waiting on Customer'})});
+    $('submitToggle').onclick=()=>{const open=!$('submitForm').classList.contains('open');$('submitForm').classList.toggle('open',open);$('submitToggle').setAttribute('aria-expanded',String(open))};
+    $('submitForm').onsubmit=async ev=>{ev.preventDefault();const btn=$('submitBtn');btn.disabled=true;btn.innerHTML='<span class="spinner" aria-hidden="true"></span>Analyzing';try{const c=await api('/api/emails',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sender:$('sender').value,subject:$('subject').value,body:$('body').value})});highlightId=c.id;$('submitForm').reset();await loadEmails();await loadDashboard();announce('Ticket '+(c.ticket_number||'created')+' created');setTimeout(()=>{highlightId=null;renderTable()},2000)}catch(e){announce('Ticket creation failed')}finally{btn.disabled=false;btn.textContent='Create ticket and analyze'}};
+    ['filterStatus','filterPriority','filterTone','searchInput'].forEach(id=>$(id).oninput=renderTable);
+    $('clearFilters').onclick=()=>{$('searchInput').value='';$('filterStatus').value='';$('filterPriority').value='';$('filterTone').value='';renderTable();announce('Filters cleared')};
+    $('criticalOnly').onclick=()=>{$('filterPriority').value='CRITICAL';renderTable();announce('Showing critical tickets')};
+    $('refreshQueue').onclick=async()=>{await loadDashboard();await loadEmails();announce('Queue refreshed')};
+    document.querySelectorAll('.sort-btn').forEach(btn=>btn.onclick=()=>{const f=btn.dataset.sort;if(sortField===f)sortAsc=!sortAsc;else{sortField=f;sortAsc=false}document.querySelectorAll('.sort-btn').forEach(b=>b.removeAttribute('aria-sort'));btn.setAttribute('aria-sort',sortAsc?'ascending':'descending');renderTable()});
+    async function init(){const cfg=await fetch('/api/config').then(r=>r.json());apiKey=cfg.apiKey;emailDeliveryMode=cfg.emailDeliveryMode||'local';$('deliveryBanner').innerHTML+=' <strong>Outbound:</strong> '+(emailDeliveryMode==='mailgun'?'Mailgun delivery is configured.':'local demo mode stores replies and generates threadable message IDs until Mailgun keys are added.');await loadDashboard();await loadEmails();setInterval(loadEmails,30000)}
+    init().catch(()=>{$('emailTable').innerHTML='<tr><td colspan="8">API connection failed</td></tr>';$('queueCount').textContent='API connection failed'});
   </script>
 </body>
 </html>
