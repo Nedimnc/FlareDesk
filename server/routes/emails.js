@@ -45,8 +45,8 @@ router.post('/', emailPostLimiter, async (req, res, next) => {
 
 router.get('/', (req, res, next) => {
   try {
-    const { status, priority, sort, order } = req.query;
-    let emails = db.getAllEmails({ status, priority, sort, order });
+    const { status, priority, queue, workspace_id, sort, order } = req.query;
+    let emails = db.getAllEmails({ status, priority, queue, workspace_id, sort, order });
 
     const tone = req.query.tone_label || req.query.tone;
     if (tone) {
@@ -92,7 +92,7 @@ router.patch('/:id', (req, res, next) => {
       return res.status(400).json({ error: patch.error });
     }
 
-    const updated = db.updateEmail(id, patch.data);
+    const updated = db.updateEmail(id, patch.data, (req.agent && req.agent.name) || 'agent');
     res.json(updated);
   } catch (err) {
     next(err);

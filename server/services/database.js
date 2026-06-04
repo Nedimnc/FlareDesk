@@ -1,5 +1,11 @@
 const Database = require('better-sqlite3');
 const path = require('path');
+const {
+  calculateSlaDeadlines,
+  classifyQueue,
+  computeSlaStatus,
+  suggestedAssignee,
+} = require('./supportOps');
 
 const DB_PATH = process.env.FLAREDESK_DB_PATH || path.join(__dirname, '../../flaredesk.db');
 
@@ -39,6 +45,14 @@ function initSchema(database) {
       closed_at DATETIME,
       last_response_at DATETIME,
       response_count INTEGER DEFAULT 0
+      ,workspace_id TEXT DEFAULT 'demo'
+      ,queue TEXT DEFAULT 'General'
+      ,first_response_due_at DATETIME
+      ,resolution_due_at DATETIME
+      ,first_response_at DATETIME
+      ,resolved_at DATETIME
+      ,sla_status TEXT DEFAULT 'on_track'
+      ,critical_alert_sent_at DATETIME
     );
 
     CREATE TABLE IF NOT EXISTS ticket_responses (
@@ -66,11 +80,36 @@ function initSchema(database) {
       FOREIGN KEY (email_id) REFERENCES emails(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS workspaces (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      plan TEXT NOT NULL DEFAULT 'Demo',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS csat_surveys (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email_id INTEGER NOT NULL,
+      rating INTEGER,
+      comment TEXT,
+      sent_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      responded_at DATETIME,
+      FOREIGN KEY (email_id) REFERENCES emails(id) ON DELETE CASCADE
+    );
+
     CREATE INDEX IF NOT EXISTS idx_responses_email ON ticket_responses(email_id);
     CREATE INDEX IF NOT EXISTS idx_events_email ON ticket_events(email_id);
     CREATE INDEX IF NOT EXISTS idx_emails_message_id ON emails(message_id);
+    CREATE INDEX IF NOT EXISTS idx_emails_workspace_queue ON emails(workspace_id, queue);
+    CREATE INDEX IF NOT EXISTS idx_emails_sla_status ON emails(sla_status);
     CREATE INDEX IF NOT EXISTS idx_responses_provider_message_id ON ticket_responses(provider_message_id);
+    CREATE INDEX IF NOT EXISTS idx_csat_email ON csat_surveys(email_id);
   `);
+  database
+    .prepare(
+      "INSERT OR IGNORE INTO workspaces (id, name, plan) VALUES ('demo', 'Demo Workspace', 'Demo')"
+    )
+    .run();
 }
 
 function migrateSchema(database) {
@@ -86,6 +125,14 @@ function migrateSchema(database) {
     ['message_id', 'TEXT'],
     ['in_reply_to', 'TEXT'],
     ['email_references', 'TEXT'],
+    ['workspace_id', "TEXT DEFAULT 'demo'"],
+    ['queue', "TEXT DEFAULT 'General'"],
+    ['first_response_due_at', 'DATETIME'],
+    ['resolution_due_at', 'DATETIME'],
+    ['first_response_at', 'DATETIME'],
+    ['resolved_at', 'DATETIME'],
+    ['sla_status', "TEXT DEFAULT 'on_track'"],
+    ['critical_alert_sent_at', 'DATETIME'],
   ];
   for (const [name, def] of emailMigrations) {
     if (!emailCols.has(name)) {
@@ -109,8 +156,17 @@ function migrateSchema(database) {
 
   database.exec(`
     CREATE INDEX IF NOT EXISTS idx_emails_message_id ON emails(message_id);
+    CREATE INDEX IF NOT EXISTS idx_emails_workspace_queue ON emails(workspace_id, queue);
+    CREATE INDEX IF NOT EXISTS idx_emails_sla_status ON emails(sla_status);
     CREATE INDEX IF NOT EXISTS idx_responses_provider_message_id ON ticket_responses(provider_message_id);
+    CREATE INDEX IF NOT EXISTS idx_csat_email ON csat_surveys(email_id);
   `);
+
+  database
+    .prepare(
+      "INSERT OR IGNORE INTO workspaces (id, name, plan) VALUES ('demo', 'Demo Workspace', 'Demo')"
+    )
+    .run();
 }
 
 function generateTicketNumber(id) {
@@ -134,27 +190,52 @@ function clearEmails() {
 }
 
 function insertEmail(row) {
+  const receivedAt = row.received_at || new Date().toISOString();
+  const queue = row.queue || classifyQueue(row);
+  const sla = calculateSlaDeadlines(row.priority, receivedAt);
+  const requestedAssignee =
+    row.assigned_to && row.assigned_to !== 'Unassigned' ? row.assigned_to : null;
+  const assignee =
+    requestedAssignee || (row.priority === 'CRITICAL' ? suggestedAssignee(queue, row.priority) : 'Unassigned');
   const stmt = getDb().prepare(`
     INSERT INTO emails (
       sender, subject, body, tone_label, distress_score, priority,
       summary, escalation_risk, assigned_to, status, channel,
-      received_at, analyzed_at, message_id, in_reply_to, email_references
+      received_at, analyzed_at, message_id, in_reply_to, email_references,
+      workspace_id, queue, first_response_due_at, resolution_due_at, sla_status,
+      critical_alert_sent_at
     ) VALUES (
       @sender, @subject, @body, @tone_label, @distress_score, @priority,
       @summary, @escalation_risk, @assigned_to, @status, @channel,
-      @received_at, @analyzed_at, @message_id, @in_reply_to, @email_references
+      @received_at, @analyzed_at, @message_id, @in_reply_to, @email_references,
+      @workspace_id, @queue, @first_response_due_at, @resolution_due_at, @sla_status,
+      @critical_alert_sent_at
     )
   `);
   const result = stmt.run({
     channel: 'manual',
-    assigned_to: 'Unassigned',
+    assigned_to: assignee,
     status: 'Open',
-    received_at: new Date().toISOString(),
+    received_at: receivedAt,
     analyzed_at: new Date().toISOString(),
     message_id: null,
     in_reply_to: null,
     email_references: null,
+    workspace_id: 'demo',
+    queue,
+    first_response_due_at: sla.first_response_due_at,
+    resolution_due_at: sla.resolution_due_at,
+    sla_status: 'on_track',
+    critical_alert_sent_at: row.priority === 'CRITICAL' ? new Date().toISOString() : null,
     ...row,
+    assigned_to: assignee,
+    received_at: receivedAt,
+    queue,
+    first_response_due_at: row.first_response_due_at || sla.first_response_due_at,
+    resolution_due_at: row.resolution_due_at || sla.resolution_due_at,
+    sla_status: row.sla_status || 'on_track',
+    critical_alert_sent_at:
+      row.critical_alert_sent_at || (row.priority === 'CRITICAL' ? new Date().toISOString() : null),
   });
   const id = result.lastInsertRowid;
   const ticketNumber = generateTicketNumber(id);
@@ -163,11 +244,35 @@ function insertEmail(row) {
     .run(ticketNumber, id);
   recordEvent(id, 'ticket_created', 'system', `Inbound via ${row.channel || 'manual'}`);
   recordEvent(id, 'analysis_complete', 'ai', row.summary || 'Tone analysis completed');
+  recordEvent(id, 'sla_started', 'system', `First response due ${sla.first_response_due_at}`);
+  if (row.priority === 'CRITICAL') {
+    recordEvent(id, 'critical_alert', 'system', `Alert routed to ${assignee}`);
+  }
   return getEmailById(id);
 }
 
 function getEmailById(id) {
   return getDb().prepare('SELECT * FROM emails WHERE id = ?').get(id);
+}
+
+function updateTicketSlaStatus(id) {
+  const ticket = getEmailById(id);
+  if (!ticket) return null;
+  const status = computeSlaStatus(ticket);
+  if (status !== ticket.sla_status) {
+    getDb().prepare('UPDATE emails SET sla_status = ? WHERE id = ?').run(status, id);
+    recordEvent(id, 'sla_status_changed', 'system', `${ticket.sla_status || 'unknown'} → ${status}`);
+  }
+  return status;
+}
+
+function refreshSlaStatuses() {
+  const activeTickets = getDb()
+    .prepare("SELECT id FROM emails WHERE status NOT IN ('Resolved', 'Closed')")
+    .all();
+  for (const ticket of activeTickets) {
+    updateTicketSlaStatus(ticket.id);
+  }
 }
 
 function getEmailByMessageId(messageId) {
@@ -212,8 +317,17 @@ function findTicketByMessageHeaders({ in_reply_to, email_references }) {
 }
 
 function getAllEmails(filters = {}) {
-  const { status, priority, sort = 'distress_score', order = 'desc' } = filters;
-  const allowedSort = ['distress_score', 'received_at', 'priority', 'id', 'last_response_at'];
+  refreshSlaStatuses();
+  const { status, priority, queue, workspace_id, sort = 'distress_score', order = 'desc' } = filters;
+  const allowedSort = [
+    'distress_score',
+    'received_at',
+    'priority',
+    'id',
+    'last_response_at',
+    'first_response_due_at',
+    'resolution_due_at',
+  ];
   const sortCol = allowedSort.includes(sort) ? sort : 'distress_score';
   const sortOrder = order.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
 
@@ -227,6 +341,14 @@ function getAllEmails(filters = {}) {
   if (priority) {
     sql += ' AND priority = ?';
     params.push(priority);
+  }
+  if (queue) {
+    sql += ' AND queue = ?';
+    params.push(queue);
+  }
+  if (workspace_id) {
+    sql += ' AND workspace_id = ?';
+    params.push(workspace_id);
   }
 
   sql += ` ORDER BY ${sortCol} ${sortOrder}`;
@@ -303,14 +425,22 @@ function insertResponse(emailId, {
     });
 
   const now = new Date().toISOString();
+  const responseAuthorType = author_type || 'agent';
+  const shouldSetFirstResponse =
+    !is_internal && responseAuthorType === 'agent' && !ticket.first_response_at;
   getDb()
     .prepare(
-      `UPDATE emails SET response_count = response_count + 1, last_response_at = @now
+      `UPDATE emails SET
+        response_count = response_count + 1,
+        last_response_at = @now,
+        first_response_at = CASE
+          WHEN @set_first_response = 1 THEN @now
+          ELSE first_response_at
+        END
        WHERE id = @id`
     )
-    .run({ now, id: emailId });
+    .run({ now, id: emailId, set_first_response: shouldSetFirstResponse ? 1 : 0 });
 
-  const responseAuthorType = author_type || 'agent';
   const label = is_internal
     ? 'internal_note'
     : responseAuthorType === 'customer'
@@ -331,6 +461,7 @@ function insertResponse(emailId, {
     getDb().prepare("UPDATE emails SET status = 'In Progress' WHERE id = ?").run(emailId);
     recordEvent(emailId, 'status_changed', author, 'Open → In Progress (first reply)');
   }
+  updateTicketSlaStatus(emailId);
 
   return getDb()
     .prepare('SELECT * FROM ticket_responses WHERE id = ?')
@@ -341,7 +472,7 @@ function updateEmail(id, fields, actor = 'agent') {
   const existing = getEmailById(id);
   if (!existing) return null;
 
-  const allowed = ['status', 'assigned_to'];
+  const allowed = ['status', 'assigned_to', 'queue', 'workspace_id'];
   const updates = [];
   const params = { id };
 
@@ -354,6 +485,7 @@ function updateEmail(id, fields, actor = 'agent') {
 
   if (fields.status === 'Closed' || fields.status === 'Resolved') {
     updates.push('closed_at = @closed_at');
+    updates.push('resolved_at = @closed_at');
     params.closed_at = new Date().toISOString();
   }
 
@@ -370,19 +502,87 @@ function updateEmail(id, fields, actor = 'agent') {
   if (fields.assigned_to && fields.assigned_to !== existing.assigned_to) {
     recordEvent(id, 'assigned', actor, `Assigned to ${fields.assigned_to}`);
   }
+  if (fields.queue && fields.queue !== existing.queue) {
+    recordEvent(id, 'queue_changed', actor, `${existing.queue || 'General'} → ${fields.queue}`);
+  }
+  if (fields.status && ['Resolved', 'Closed'].includes(fields.status)) {
+    ensureCsatSurvey(id);
+  }
+  updateTicketSlaStatus(id);
 
   return getEmailById(id);
 }
 
 function deleteEmail(id) {
   const conn = getDb();
+  conn.prepare('DELETE FROM csat_surveys WHERE email_id = ?').run(id);
   conn.prepare('DELETE FROM ticket_responses WHERE email_id = ?').run(id);
   conn.prepare('DELETE FROM ticket_events WHERE email_id = ?').run(id);
   const result = conn.prepare('DELETE FROM emails WHERE id = ?').run(id);
   return result.changes > 0;
 }
 
+function getWorkspaces() {
+  return getDb().prepare('SELECT * FROM workspaces ORDER BY created_at ASC').all();
+}
+
+function getQueues() {
+  refreshSlaStatuses();
+  const rows = getDb()
+    .prepare(
+      `SELECT queue, COUNT(*) as open_count
+       FROM emails
+       WHERE status NOT IN ('Resolved', 'Closed')
+       GROUP BY queue`
+    )
+    .all();
+  const counts = Object.fromEntries(rows.map((row) => [row.queue, row.open_count]));
+  const { QUEUES } = require('./supportOps');
+  return QUEUES.map((queue) => ({
+    ...queue,
+    open_count: counts[queue.id] || 0,
+  }));
+}
+
+function ensureCsatSurvey(emailId) {
+  const existing = getDb()
+    .prepare('SELECT * FROM csat_surveys WHERE email_id = ?')
+    .get(emailId);
+  if (existing) return existing;
+
+  const result = getDb()
+    .prepare('INSERT INTO csat_surveys (email_id, sent_at) VALUES (?, ?)')
+    .run(emailId, new Date().toISOString());
+  recordEvent(emailId, 'csat_sent', 'system', 'CSAT survey queued for resolved ticket');
+  return getDb().prepare('SELECT * FROM csat_surveys WHERE id = ?').get(result.lastInsertRowid);
+}
+
+function submitCsat(emailId, { rating, comment }) {
+  const ticket = getEmailById(emailId);
+  if (!ticket) return null;
+  ensureCsatSurvey(emailId);
+  getDb()
+    .prepare(
+      `UPDATE csat_surveys
+       SET rating = @rating, comment = @comment, responded_at = @responded_at
+       WHERE email_id = @email_id`
+    )
+    .run({
+      email_id: emailId,
+      rating,
+      comment: comment || null,
+      responded_at: new Date().toISOString(),
+    });
+  recordEvent(emailId, 'csat_received', 'customer', `Rating: ${rating}/5`);
+  return getDb().prepare('SELECT * FROM csat_surveys WHERE email_id = ?').get(emailId);
+}
+
+function getCsat(emailId) {
+  return getDb().prepare('SELECT * FROM csat_surveys WHERE email_id = ?').get(emailId) || null;
+}
+
 function getDashboardStats() {
+  refreshSlaStatuses();
   const dbConn = getDb();
   const total = dbConn.prepare('SELECT COUNT(*) as count FROM emails').get().count;
   const open = dbConn
@@ -427,6 +627,31 @@ function getDashboardStats() {
   const totalResponses = dbConn
     .prepare('SELECT COUNT(*) as count FROM ticket_responses')
     .get().count;
+  const slaBreached = dbConn
+    .prepare(
+      "SELECT COUNT(*) as count FROM emails WHERE sla_status = 'breached' AND status NOT IN ('Resolved', 'Closed')"
+    )
+    .get().count;
+  const slaDueSoon = dbConn
+    .prepare(
+      "SELECT COUNT(*) as count FROM emails WHERE sla_status = 'due_soon' AND status NOT IN ('Resolved', 'Closed')"
+    )
+    .get().count;
+  const criticalAlerts = dbConn
+    .prepare('SELECT COUNT(*) as count FROM emails WHERE critical_alert_sent_at IS NOT NULL')
+    .get().count;
+  const csatRow = dbConn
+    .prepare('SELECT AVG(rating) as avg_rating, COUNT(rating) as responses FROM csat_surveys WHERE rating IS NOT NULL')
+    .get();
+  const queueRows = dbConn
+    .prepare(
+      "SELECT queue, COUNT(*) as count FROM emails WHERE status NOT IN ('Resolved', 'Closed') GROUP BY queue"
+    )
+    .all();
+  const queue_breakdown = {};
+  for (const row of queueRows) {
+    queue_breakdown[row.queue || 'General'] = row.count;
+  }
 
   return {
     total,
@@ -435,9 +660,51 @@ function getDashboardStats() {
     closed,
     awaiting_response: awaiting,
     total_responses: totalResponses,
+    sla_breached: slaBreached,
+    sla_due_soon: slaDueSoon,
+    critical_alerts: criticalAlerts,
+    avg_csat: csatRow.avg_rating != null ? Math.round(csatRow.avg_rating * 10) / 10 : null,
+    csat_responses: csatRow.responses || 0,
+    queue_breakdown,
     avg_distress_score,
     top_escalation_risks,
     tone_breakdown,
+  };
+}
+
+function getReportOverview() {
+  refreshSlaStatuses();
+  const dbConn = getDb();
+  const byPriority = dbConn
+    .prepare('SELECT priority, COUNT(*) as count FROM emails GROUP BY priority')
+    .all();
+  const byQueue = dbConn
+    .prepare('SELECT queue, COUNT(*) as count FROM emails GROUP BY queue')
+    .all();
+  const bySla = dbConn
+    .prepare('SELECT sla_status, COUNT(*) as count FROM emails GROUP BY sla_status')
+    .all();
+  const responseRows = dbConn
+    .prepare(
+      `SELECT received_at, first_response_at
+       FROM emails
+       WHERE first_response_at IS NOT NULL`
+    )
+    .all();
+  const avgFirstResponseMinutes = responseRows.length
+    ? Math.round(
+        responseRows.reduce((sum, row) => {
+          return sum + (new Date(row.first_response_at) - new Date(row.received_at)) / 60000;
+        }, 0) / responseRows.length
+      )
+    : null;
+
+  return {
+    priority_breakdown: Object.fromEntries(byPriority.map((row) => [row.priority, row.count])),
+    queue_breakdown: Object.fromEntries(byQueue.map((row) => [row.queue || 'General', row.count])),
+    sla_breakdown: Object.fromEntries(bySla.map((row) => [row.sla_status || 'on_track', row.count])),
+    avg_first_response_minutes: avgFirstResponseMinutes,
+    dashboard: getDashboardStats(),
   };
 }
 
@@ -456,10 +723,18 @@ module.exports = {
   getEmailByMessageId,
   getResponseByProviderMessageId,
   findTicketByMessageHeaders,
+  updateTicketSlaStatus,
+  refreshSlaStatuses,
   getAllEmails,
   updateEmail,
   deleteEmail,
   getDashboardStats,
+  getReportOverview,
+  getWorkspaces,
+  getQueues,
+  ensureCsatSurvey,
+  submitCsat,
+  getCsat,
   getTicketThread,
   insertResponse,
   getResponses,

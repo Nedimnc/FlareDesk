@@ -11,6 +11,12 @@ function authMiddleware(req, res, next) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
+  req.agent = {
+    name: req.headers['x-flaredesk-agent'] || process.env.FLAREDESK_AGENT_NAME || 'Support Agent',
+    role: req.headers['x-flaredesk-role'] || process.env.FLAREDESK_AGENT_ROLE || 'admin',
+    workspace_id: req.headers['x-flaredesk-workspace'] || process.env.FLAREDESK_WORKSPACE_ID || 'demo',
+  };
+
   next();
 }
 

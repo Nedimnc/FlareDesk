@@ -52,7 +52,7 @@ router.post('/:id/responses', async (req, res, next) => {
       return res.status(400).json({ error: parsed.error });
     }
 
-    const author = req.body.author || 'Support Agent';
+    const author = req.body.author || (req.agent && req.agent.name) || 'Support Agent';
     const delivery = parsed.data.is_internal
       ? { status: 'logged', provider: 'internal', detail: 'Internal note stored.' }
       : await sendTicketReply({ ticket, body: parsed.data.body, author });
@@ -79,6 +79,31 @@ router.post('/:id/responses', async (req, res, next) => {
     }
 
     res.status(201).json({ response, ticket: updatedTicket, delivery });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/:id/csat', (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1) {
+      return res.status(400).json({ error: 'Invalid ticket id' });
+    }
+
+    const rating = Number(req.body && req.body.rating);
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+      return res.status(400).json({ error: 'CSAT rating must be an integer from 1 to 5' });
+    }
+
+    const comment =
+      typeof req.body.comment === 'string' ? req.body.comment.trim().slice(0, 1000) : null;
+    const survey = db.submitCsat(id, { rating, comment });
+    if (!survey) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+
+    res.status(201).json(survey);
   } catch (err) {
     next(err);
   }

@@ -10,6 +10,7 @@ const emailsRouter = require('./routes/emails');
 const dashboardRouter = require('./routes/dashboard');
 const ticketsRouter = require('./routes/tickets');
 const webhooksRouter = require('./routes/webhooks');
+const supportRouter = require('./routes/support');
 const db = require('./services/database');
 const { isEmailDeliveryConfigured } = require('./services/emailDelivery');
 
@@ -69,10 +70,13 @@ app.get('/api/config', (req, res) => {
   res.json({
     apiKey: process.env.FLAREDESK_API_KEY,
     emailDeliveryMode: isEmailDeliveryConfigured() ? 'mailgun' : 'local',
+    workspaceId: process.env.FLAREDESK_WORKSPACE_ID || 'demo',
+    agentName: process.env.FLAREDESK_AGENT_NAME || 'Support Agent',
   });
 });
 
 app.use('/api', apiLimiter);
+app.use('/api', auth, supportRouter);
 app.use('/api/emails', auth, emailsRouter);
 app.use('/api/emails', auth, ticketsRouter);
 app.use('/api/webhooks', webhooksRouter);

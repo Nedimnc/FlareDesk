@@ -56,9 +56,10 @@ function sanitizeEmailInput({ sender, subject, body }) {
   };
 }
 
-function sanitizePatchInput({ status, assigned_to }) {
+function sanitizePatchInput({ status, assigned_to, queue, workspace_id }) {
   const result = {};
   const allowedStatus = new Set(['Open', 'In Progress', 'Waiting on Customer', 'Resolved', 'Closed']);
+  const allowedQueues = new Set(['Escalations', 'Billing', 'Technical', 'Success', 'General']);
 
   if (status !== undefined) {
     if (typeof status !== 'string' || !allowedStatus.has(status.trim())) {
@@ -73,6 +74,21 @@ function sanitizePatchInput({ status, assigned_to }) {
       return { valid: false, error: assignedResult.error };
     }
     result.assigned_to = assignedResult.value;
+  }
+
+  if (queue !== undefined) {
+    if (typeof queue !== 'string' || !allowedQueues.has(queue.trim())) {
+      return { valid: false, error: 'Invalid queue value' };
+    }
+    result.queue = queue.trim();
+  }
+
+  if (workspace_id !== undefined) {
+    const workspaceResult = sanitizeString(workspace_id, 80, 'workspace_id');
+    if (workspaceResult.error) {
+      return { valid: false, error: workspaceResult.error };
+    }
+    result.workspace_id = workspaceResult.value;
   }
 
   if (!Object.keys(result).length) {
