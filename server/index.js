@@ -76,10 +76,10 @@ app.get('/api/config', (req, res) => {
 });
 
 app.use('/api', apiLimiter);
+app.use('/api/webhooks', webhooksRouter);
 app.use('/api', auth, supportRouter);
 app.use('/api/emails', auth, emailsRouter);
 app.use('/api/emails', auth, ticketsRouter);
-app.use('/api/webhooks', webhooksRouter);
 app.use('/api/dashboard', auth, dashboardRouter);
 
 app.use((err, req, res, next) => {
