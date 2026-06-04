@@ -182,9 +182,19 @@ function recordEvent(emailId, eventType, actor, detail) {
 
 function clearEmails() {
   const conn = getDb();
+  conn.prepare('DELETE FROM csat_surveys').run();
   conn.prepare('DELETE FROM ticket_responses').run();
   conn.prepare('DELETE FROM ticket_events').run();
   conn.prepare('DELETE FROM emails').run();
+  try {
+    conn
+      .prepare(
+        "DELETE FROM sqlite_sequence WHERE name IN ('emails', 'ticket_responses', 'ticket_events', 'csat_surveys')"
+      )
+      .run();
+  } catch {
+    // In-memory SQLite may not create sqlite_sequence until an AUTOINCREMENT table is used.
+  }
 }
 
 function insertEmail(row) {
