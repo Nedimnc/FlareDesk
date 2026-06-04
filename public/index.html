@@ -238,11 +238,11 @@
                   <th scope="col"><button type="button" class="sort-btn" data-sort="distress_score" aria-label="Sort by distress score">Distress</button></th>
                   <th scope="col">Ticket</th>
                   <th scope="col"><button type="button" class="sort-btn" data-sort="priority" aria-label="Sort by priority">Priority</button></th>
+                  <th scope="col">Queue</th>
+                  <th scope="col">SLA</th>
                   <th scope="col">Sender</th>
                   <th scope="col">Subject</th>
                   <th scope="col">Tone</th>
-                  <th scope="col">Queue</th>
-                  <th scope="col">SLA</th>
                   <th scope="col">Replies</th>
                   <th scope="col">Status</th>
                 </tr>
@@ -325,7 +325,7 @@
     function renderTable(){const rows=filtered();$('queueCount').textContent=rows.length+' of '+emails.length+' tickets shown';
       if(!rows.length){$('emailTable').innerHTML='<tr><td colspan="10">No tickets match your filters.</td></tr>';return}
       $('emailTable').innerHTML=rows.map(e=>{const act=e.id===selectedId?' active':'',hl=e.id===highlightId?' highlight':'';
-        return '<tr data-id="'+e.id+'" class="'+act+hl+'" tabindex="0" role="button" aria-label="Open ticket '+esc(e.ticket_number||e.id)+', '+esc(unesc(e.subject))+'"><td>'+scoreBar(e.distress_score)+'</td><td class="ticket-id">'+esc(e.ticket_number||'-')+'</td><td>'+badge('prio-'+e.priority,e.priority)+'</td><td class="sender-cell">'+esc(unesc(e.sender))+'</td><td class="subject-cell">'+esc(unesc(e.subject))+'</td><td>'+badge('tone-'+e.tone_label,e.tone_label)+'</td><td>'+esc(e.queue||'General')+'</td><td>'+esc((e.sla_status||'on_track').replace('_',' '))+'</td><td>'+(e.response_count||0)+'</td><td>'+esc(e.status)+'</td></tr>'}).join('');
+        return '<tr data-id="'+e.id+'" class="'+act+hl+'" tabindex="0" role="button" aria-label="Open ticket '+esc(e.ticket_number||e.id)+', '+esc(unesc(e.subject))+'"><td>'+scoreBar(e.distress_score)+'</td><td class="ticket-id">'+esc(e.ticket_number||'-')+'</td><td>'+badge('prio-'+e.priority,e.priority)+'</td><td>'+esc(e.queue||'General')+'</td><td>'+esc((e.sla_status||'on_track').replace('_',' '))+'</td><td class="sender-cell">'+esc(unesc(e.sender))+'</td><td class="subject-cell">'+esc(unesc(e.subject))+'</td><td>'+badge('tone-'+e.tone_label,e.tone_label)+'</td><td>'+(e.response_count||0)+'</td><td>'+esc(e.status)+'</td></tr>'}).join('');
       document.querySelectorAll('#emailTable tr[data-id]').forEach(tr=>{tr.onclick=()=>openDetail(+tr.dataset.id);tr.onkeydown=ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();openDetail(+tr.dataset.id)}}})}
     async function loadDashboard(){const s=await api('/api/dashboard');const items=[['Tickets',s.total],['Open',s.open],['Critical',s.critical],['Awaiting reply',s.awaiting_response],['Responses',s.total_responses],['Closed',s.closed]];
       $('topbar').innerHTML=items.map(([l,n])=>'<article class="stat-card"><div class="num">'+n+'</div><div class="label">'+l+'</div></article>').join('');
@@ -342,7 +342,7 @@
       $('tabActivity').innerHTML=thread.events.slice().reverse().map(ev=>'<div class="event-item"><strong>'+esc(ev.event_type)+'</strong> - '+esc(ev.detail||'')+' <span>('+new Date(ev.created_at).toLocaleString()+')</span></div>').join('')}
     async function openDetail(id){selectedId=id;thread=await api('/api/emails/'+id+'/thread');renderThread();$('detailPanel').classList.add('open');$('detailPanel').setAttribute('aria-hidden','false');$('overlay').classList.add('show');renderTable();if(thread.ticket.status==='Closed')$('replyBox').classList.add('hidden');else $('replyBox').classList.remove('hidden');$('closeDetail').focus();announce('Opened '+(thread.ticket.ticket_number||'ticket'))}
     function closeDetail(){$('detailPanel').classList.remove('open');$('detailPanel').setAttribute('aria-hidden','true');$('overlay').classList.remove('show');selectedId=null;renderTable();announce('Ticket details closed')}
-    async function patchTicket(fields){if(!selectedId)return;await api('/api/emails/'+selectedId,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(fields)});await loadOps();await loadEmails();thread=await api('/api/emails/'+selectedId+'/thread');renderThread();await loadDashboard();announce('Ticket updated')}
+    async function patchTicket(fields){if(!selectedId)return;const updated=await api('/api/emails/'+selectedId,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(fields)});if(thread&&thread.ticket)thread.ticket={...thread.ticket,...updated};renderThread();await loadOps();await loadEmails();thread=await api('/api/emails/'+selectedId+'/thread');renderThread();await loadDashboard();announce('Ticket updated')}
     function setActiveTab(name){document.querySelectorAll('.tab').forEach(tab=>{const active=tab.dataset.tab===name;tab.classList.toggle('active',active);tab.setAttribute('aria-selected',String(active))});$('tabConversation').classList.toggle('hidden',name!=='conversation');$('tabActivity').classList.toggle('hidden',name!=='activity')}
     $('themeToggle').onclick=()=>{const current=document.documentElement.getAttribute('data-theme')||'light';setTheme(current==='dark'?'light':'dark')};
     $('closeDetail').onclick=closeDetail;$('overlay').onclick=closeDetail;document.addEventListener('keydown',ev=>{if(ev.key==='Escape'&&$('detailPanel').classList.contains('open'))closeDetail()});
