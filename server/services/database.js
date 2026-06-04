@@ -100,8 +100,6 @@ function initSchema(database) {
     CREATE INDEX IF NOT EXISTS idx_responses_email ON ticket_responses(email_id);
     CREATE INDEX IF NOT EXISTS idx_events_email ON ticket_events(email_id);
     CREATE INDEX IF NOT EXISTS idx_emails_message_id ON emails(message_id);
-    CREATE INDEX IF NOT EXISTS idx_emails_workspace_queue ON emails(workspace_id, queue);
-    CREATE INDEX IF NOT EXISTS idx_emails_sla_status ON emails(sla_status);
     CREATE INDEX IF NOT EXISTS idx_responses_provider_message_id ON ticket_responses(provider_message_id);
     CREATE INDEX IF NOT EXISTS idx_csat_email ON csat_surveys(email_id);
   `);
