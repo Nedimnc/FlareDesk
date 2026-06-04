@@ -58,6 +58,12 @@
     .submit-form.open{display:grid}
     .submit-form .full{grid-column:1/-1}
     .queue-card{border-radius:20px;overflow:hidden}
+    .ops-grid{display:grid;grid-template-columns:repeat(4,minmax(140px,1fr));gap:.75rem;padding:1rem 1.1rem}
+    .ops-item{background:var(--surface-2);border:1px solid var(--border);border-radius:16px;padding:.8rem}
+    .ops-item strong{display:block;font-family:'IBM Plex Mono',monospace;font-size:1.2rem;color:var(--accent)}
+    .draft-tools{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.5rem;margin-top:.75rem}
+    .kb-list{display:grid;gap:.45rem;margin-top:.6rem;color:var(--muted);font-size:.84rem}
+    .kb-list a{font-weight:700;text-decoration:none}
     .queue-header{display:flex;justify-content:space-between;gap:1rem;align-items:center;padding:1rem 1.1rem;border-bottom:1px solid var(--border)}
     .queue-header h2{margin:0;font-size:1.05rem}
     .queue-count{color:var(--muted);font-size:.88rem}
@@ -121,7 +127,7 @@
     @keyframes spin{to{transform:rotate(360deg)}}
     @keyframes flash{0%{background:var(--accent-soft)}100%{background:transparent}}
     @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.001ms!important}}
-    @media (max-width:1100px){.app{grid-template-columns:1fr}.sidebar{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--border)}.topbar{grid-template-columns:repeat(3,minmax(120px,1fr));position:relative}.hero{grid-template-columns:1fr}.submit-form{grid-template-columns:1fr}}
+    @media (max-width:1100px){.app{grid-template-columns:1fr}.sidebar{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--border)}.topbar{grid-template-columns:repeat(3,minmax(120px,1fr));position:relative}.hero{grid-template-columns:1fr}.submit-form{grid-template-columns:1fr}.ops-grid{grid-template-columns:repeat(2,minmax(140px,1fr))}}
     @media (max-width:700px){.content,.topbar,.sidebar{padding:.85rem}.topbar{grid-template-columns:repeat(2,minmax(0,1fr))}.queue-header{align-items:flex-start;flex-direction:column}.subject-cell{min-width:14rem}}
   </style>
 </head>
@@ -158,6 +164,12 @@
           <label for="filterTone">Tone</label>
           <select class="field" id="filterTone">
             <option value="">All tones</option><option>Furious</option><option>Frustrated</option><option>Anxious</option><option>Neutral</option><option>Satisfied</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="filterQueue">Queue</label>
+          <select class="field" id="filterQueue">
+            <option value="">All queues</option>
           </select>
         </div>
         <div class="filter-actions">
@@ -201,6 +213,15 @@
             </div>
           </form>
         </section>
+        <section class="queue-card" aria-labelledby="opsTitle">
+          <div class="queue-header">
+            <div>
+              <h2 id="opsTitle">Operations cockpit</h2>
+              <div class="queue-count">SLA, CSAT, queues, and escalation health</div>
+            </div>
+          </div>
+          <div class="ops-grid" id="opsPanel"></div>
+        </section>
         <section class="queue-card" aria-labelledby="queueTitle">
           <div class="queue-header">
             <div>
@@ -220,6 +241,8 @@
                   <th scope="col">Sender</th>
                   <th scope="col">Subject</th>
                   <th scope="col">Tone</th>
+                  <th scope="col">Queue</th>
+                  <th scope="col">SLA</th>
                   <th scope="col">Replies</th>
                   <th scope="col">Status</th>
                 </tr>
@@ -254,12 +277,24 @@
         <button type="button" class="reply-tab" data-reply="internal" aria-pressed="false">Internal note</button>
       </div>
       <label for="replyBody">Message</label>
+      <div class="draft-tools">
+        <label class="sr-only" for="macroSelect">Reply macro</label>
+        <select class="status-select" id="macroSelect">
+          <option value="">Suggested draft</option>
+        </select>
+        <button type="button" class="btn-secondary" id="draftReply">Draft reply</button>
+      </div>
+      <div class="kb-list" id="kbSuggestions" aria-live="polite"></div>
       <textarea id="replyBody" placeholder="Type your response..."></textarea>
       <div class="btn-row">
         <button type="button" class="btn" id="sendReply">Send reply</button>
         <label class="sr-only" for="statusSelect">Ticket status</label>
         <select class="status-select" id="statusSelect">
           <option>Open</option><option>In Progress</option><option>Waiting on Customer</option><option>Resolved</option><option>Closed</option>
+        </select>
+        <label class="sr-only" for="queueSelect">Ticket queue</label>
+        <select class="status-select" id="queueSelect">
+          <option>Escalations</option><option>Billing</option><option>Technical</option><option>Success</option><option>General</option>
         </select>
         <button type="button" class="btn-secondary" data-action="assign">Assign senior</button>
         <button type="button" class="btn-secondary" data-action="waiting">Waiting on customer</button>
@@ -269,6 +304,7 @@
   <div class="live-region hidden" id="liveRegion" role="status" aria-live="polite"></div>
   <script>
     let apiKey='',emailDeliveryMode='local',emails=[],thread=null,selectedId=null,highlightId=null;
+    let macros=[],queues=[],report=null;
     let sortField='distress_score',sortAsc=false,replyInternal=false;
     const $=id=>document.getElementById(id);
     const preferDark=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -283,42 +319,48 @@
     function badge(c,t){return '<span class="badge '+c+'">'+esc(t)+'</span>'}
     function scoreBar(n){const score=Number(n)||0;const w=Math.max(0,Math.min(100,score/10*100));return '<div class="score" aria-label="Distress score '+score+' out of 10"><span class="score-bar" aria-hidden="true"><span class="score-bar-fill" style="width:'+w+'%"></span></span><span class="score-num">'+score+'</span></div>'}
     function normalized(value){return unesc(value||'').toLowerCase()}
-    function filtered(){const st=$('filterStatus').value,pr=$('filterPriority').value,tn=$('filterTone').value,q=normalized($('searchInput').value);
-      return emails.filter(e=>(!st||e.status===st)&&(!pr||e.priority===pr)&&(!tn||e.tone_label===tn)&&(!q||[e.ticket_number,e.sender,e.subject,e.status,e.priority,e.tone_label].some(v=>normalized(v).includes(q))))
+    function filtered(){const st=$('filterStatus').value,pr=$('filterPriority').value,tn=$('filterTone').value,queue=$('filterQueue').value,q=normalized($('searchInput').value);
+      return emails.filter(e=>(!st||e.status===st)&&(!pr||e.priority===pr)&&(!tn||e.tone_label===tn)&&(!queue||e.queue===queue)&&(!q||[e.ticket_number,e.sender,e.subject,e.status,e.priority,e.tone_label,e.queue,e.sla_status].some(v=>normalized(v).includes(q))))
         .sort((a,b)=>{let av=a[sortField],bv=b[sortField];if(sortField==='received_at'){av=new Date(av);bv=new Date(bv)}return av<bv?sortAsc?-1:1:av>bv?sortAsc?1:-1:0})}
     function renderTable(){const rows=filtered();$('queueCount').textContent=rows.length+' of '+emails.length+' tickets shown';
-      if(!rows.length){$('emailTable').innerHTML='<tr><td colspan="8">No tickets match your filters.</td></tr>';return}
+      if(!rows.length){$('emailTable').innerHTML='<tr><td colspan="10">No tickets match your filters.</td></tr>';return}
       $('emailTable').innerHTML=rows.map(e=>{const act=e.id===selectedId?' active':'',hl=e.id===highlightId?' highlight':'';
-        return '<tr data-id="'+e.id+'" class="'+act+hl+'" tabindex="0" role="button" aria-label="Open ticket '+esc(e.ticket_number||e.id)+', '+esc(unesc(e.subject))+'"><td>'+scoreBar(e.distress_score)+'</td><td class="ticket-id">'+esc(e.ticket_number||'-')+'</td><td>'+badge('prio-'+e.priority,e.priority)+'</td><td class="sender-cell">'+esc(unesc(e.sender))+'</td><td class="subject-cell">'+esc(unesc(e.subject))+'</td><td>'+badge('tone-'+e.tone_label,e.tone_label)+'</td><td>'+(e.response_count||0)+'</td><td>'+esc(e.status)+'</td></tr>'}).join('');
+        return '<tr data-id="'+e.id+'" class="'+act+hl+'" tabindex="0" role="button" aria-label="Open ticket '+esc(e.ticket_number||e.id)+', '+esc(unesc(e.subject))+'"><td>'+scoreBar(e.distress_score)+'</td><td class="ticket-id">'+esc(e.ticket_number||'-')+'</td><td>'+badge('prio-'+e.priority,e.priority)+'</td><td class="sender-cell">'+esc(unesc(e.sender))+'</td><td class="subject-cell">'+esc(unesc(e.subject))+'</td><td>'+badge('tone-'+e.tone_label,e.tone_label)+'</td><td>'+esc(e.queue||'General')+'</td><td>'+esc((e.sla_status||'on_track').replace('_',' '))+'</td><td>'+(e.response_count||0)+'</td><td>'+esc(e.status)+'</td></tr>'}).join('');
       document.querySelectorAll('#emailTable tr[data-id]').forEach(tr=>{tr.onclick=()=>openDetail(+tr.dataset.id);tr.onkeydown=ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();openDetail(+tr.dataset.id)}}})}
     async function loadDashboard(){const s=await api('/api/dashboard');const items=[['Tickets',s.total],['Open',s.open],['Critical',s.critical],['Awaiting reply',s.awaiting_response],['Responses',s.total_responses],['Closed',s.closed]];
       $('topbar').innerHTML=items.map(([l,n])=>'<article class="stat-card"><div class="num">'+n+'</div><div class="label">'+l+'</div></article>').join('');
-      $('miniStats').innerHTML='<article class="mini-stat"><div class="val">'+s.avg_distress_score+'</div><div class="lbl">Average distress</div></article><article class="mini-stat"><div class="val">'+s.critical+'</div><div class="lbl">Critical active</div></article>'}
+      $('miniStats').innerHTML='<article class="mini-stat"><div class="val">'+s.avg_distress_score+'</div><div class="lbl">Average distress</div></article><article class="mini-stat"><div class="val">'+s.critical+'</div><div class="lbl">Critical active</div></article><article class="mini-stat"><div class="val">'+s.sla_breached+'</div><div class="lbl">SLA breached</div></article>'}
+    async function loadOps(){const [macroData,queueData,reportData]=await Promise.all([api('/api/macros'),api('/api/queues'),api('/api/reports/overview')]);macros=macroData;queues=queueData;report=reportData;
+      $('filterQueue').innerHTML='<option value="">All queues</option>'+queues.map(q=>'<option value="'+esc(q.id)+'">'+esc(q.label)+'</option>').join('');
+      $('macroSelect').innerHTML='<option value="">Suggested draft</option>'+macros.map(m=>'<option value="'+esc(m.id)+'">'+esc(m.title)+'</option>').join('');
+      const d=report.dashboard;$('opsPanel').innerHTML=[['SLA breached',d.sla_breached],['Due soon',d.sla_due_soon],['Critical alerts',d.critical_alerts],['Avg CSAT',d.avg_csat==null?'--':d.avg_csat+'/5']].map(([l,n])=>'<article class="ops-item"><strong>'+n+'</strong><span>'+l+'</span></article>').join('')}
     async function loadEmails(){emails=await api('/api/emails?sort=distress_score&order=desc');renderTable()}
     function renderThread(){const t=thread.ticket;$('detailTicketId').textContent=(t.ticket_number||'Ticket')+' - '+t.channel+' channel';$('detailSubject').textContent=unesc(t.subject);
-      $('detailMeta').innerHTML='<span>'+esc(unesc(t.sender))+'</span>'+badge('prio-'+t.priority,t.priority)+badge('tone-'+t.tone_label,t.tone_label)+'<span>Risk: '+esc(t.escalation_risk||'None')+'</span>';$('statusSelect').value=t.status;
+      $('detailMeta').innerHTML='<span>'+esc(unesc(t.sender))+'</span>'+badge('prio-'+t.priority,t.priority)+badge('tone-'+t.tone_label,t.tone_label)+'<span>Queue: '+esc(t.queue||'General')+'</span><span>SLA: '+esc((t.sla_status||'on_track').replace('_',' '))+'</span><span>Risk: '+esc(t.escalation_risk||'None')+'</span>';$('statusSelect').value=t.status;$('queueSelect').value=t.queue||'General';
       const msgs=[{type:'inbound',author:t.sender,time:t.received_at,body:t.body,label:'Original inbound email',status:'received'},...thread.responses.map(r=>({type:r.is_internal?'internal':r.author_type==='customer'?'inbound':'outbound',author:r.author,time:r.created_at,body:r.body,label:r.is_internal?'Internal note':r.author_type==='customer'?'Customer reply':'Agent reply',status:r.delivery_status}))];
       $('tabConversation').innerHTML='<p style="color:var(--muted);line-height:1.5;margin:0">'+esc(t.summary||'')+'</p>'+msgs.map(m=>'<article class="thread-msg '+m.type+'"><div class="thread-meta">'+esc(m.label)+' - '+esc(unesc(m.author))+' - '+new Date(m.time).toLocaleString()+' - '+esc(m.status)+'</div><div class="thread-text">'+esc(unesc(m.body))+'</div></article>').join('');
       $('tabActivity').innerHTML=thread.events.slice().reverse().map(ev=>'<div class="event-item"><strong>'+esc(ev.event_type)+'</strong> - '+esc(ev.detail||'')+' <span>('+new Date(ev.created_at).toLocaleString()+')</span></div>').join('')}
     async function openDetail(id){selectedId=id;thread=await api('/api/emails/'+id+'/thread');renderThread();$('detailPanel').classList.add('open');$('detailPanel').setAttribute('aria-hidden','false');$('overlay').classList.add('show');renderTable();if(thread.ticket.status==='Closed')$('replyBox').classList.add('hidden');else $('replyBox').classList.remove('hidden');$('closeDetail').focus();announce('Opened '+(thread.ticket.ticket_number||'ticket'))}
     function closeDetail(){$('detailPanel').classList.remove('open');$('detailPanel').setAttribute('aria-hidden','true');$('overlay').classList.remove('show');selectedId=null;renderTable();announce('Ticket details closed')}
-    async function patchTicket(fields){if(!selectedId)return;await api('/api/emails/'+selectedId,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(fields)});await loadEmails();thread=await api('/api/emails/'+selectedId+'/thread');renderThread();await loadDashboard();announce('Ticket updated')}
+    async function patchTicket(fields){if(!selectedId)return;await api('/api/emails/'+selectedId,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(fields)});await loadOps();await loadEmails();thread=await api('/api/emails/'+selectedId+'/thread');renderThread();await loadDashboard();announce('Ticket updated')}
     function setActiveTab(name){document.querySelectorAll('.tab').forEach(tab=>{const active=tab.dataset.tab===name;tab.classList.toggle('active',active);tab.setAttribute('aria-selected',String(active))});$('tabConversation').classList.toggle('hidden',name!=='conversation');$('tabActivity').classList.toggle('hidden',name!=='activity')}
     $('themeToggle').onclick=()=>{const current=document.documentElement.getAttribute('data-theme')||'light';setTheme(current==='dark'?'light':'dark')};
     $('closeDetail').onclick=closeDetail;$('overlay').onclick=closeDetail;document.addEventListener('keydown',ev=>{if(ev.key==='Escape'&&$('detailPanel').classList.contains('open'))closeDetail()});
     document.querySelectorAll('.tab').forEach(tab=>tab.onclick=()=>setActiveTab(tab.dataset.tab));
     document.querySelectorAll('.reply-tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.reply-tab').forEach(x=>{x.classList.remove('active');x.setAttribute('aria-pressed','false')});b.classList.add('active');b.setAttribute('aria-pressed','true');replyInternal=b.dataset.reply==='internal'});
     $('sendReply').onclick=async()=>{const body=$('replyBody').value.trim();if(!body||!selectedId){announce('Add a message before sending');return}const btn=$('sendReply');btn.disabled=true;try{await api('/api/emails/'+selectedId+'/responses',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({body,is_internal:replyInternal})});$('replyBody').value='';await loadEmails();thread=await api('/api/emails/'+selectedId+'/thread');renderThread();await loadDashboard();announce(replyInternal?'Internal note added':'Reply saved')}finally{btn.disabled=false}};
+    $('draftReply').onclick=async()=>{if(!selectedId)return;const macro=$('macroSelect').value;const draft=await api('/api/emails/'+selectedId+'/reply-draft'+(macro?'?macro_id='+encodeURIComponent(macro):''));$('replyBody').value=draft.body;$('kbSuggestions').innerHTML=draft.knowledge_base.map(k=>'<div><a href="#" aria-disabled="true">'+esc(k.title)+'</a> - '+esc(k.summary)+'</div>').join('')||'<div>No matching knowledge suggestions.</div>';announce('Reply draft generated')};
     $('statusSelect').onchange=()=>patchTicket({status:$('statusSelect').value});
+    $('queueSelect').onchange=()=>patchTicket({queue:$('queueSelect').value});
     document.querySelectorAll('[data-action]').forEach(b=>b.onclick=()=>{if(b.dataset.action==='assign')patchTicket({assigned_to:'Senior Agent',status:'In Progress'});if(b.dataset.action==='waiting')patchTicket({status:'Waiting on Customer'})});
     $('submitToggle').onclick=()=>{const open=!$('submitForm').classList.contains('open');$('submitForm').classList.toggle('open',open);$('submitToggle').setAttribute('aria-expanded',String(open))};
     $('submitForm').onsubmit=async ev=>{ev.preventDefault();const btn=$('submitBtn');btn.disabled=true;btn.innerHTML='<span class="spinner" aria-hidden="true"></span>Analyzing';try{const c=await api('/api/emails',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sender:$('sender').value,subject:$('subject').value,body:$('body').value})});highlightId=c.id;$('submitForm').reset();await loadEmails();await loadDashboard();announce('Ticket '+(c.ticket_number||'created')+' created');setTimeout(()=>{highlightId=null;renderTable()},2000)}catch(e){announce('Ticket creation failed')}finally{btn.disabled=false;btn.textContent='Create ticket and analyze'}};
-    ['filterStatus','filterPriority','filterTone','searchInput'].forEach(id=>$(id).oninput=renderTable);
-    $('clearFilters').onclick=()=>{$('searchInput').value='';$('filterStatus').value='';$('filterPriority').value='';$('filterTone').value='';renderTable();announce('Filters cleared')};
+    ['filterStatus','filterPriority','filterTone','filterQueue','searchInput'].forEach(id=>$(id).oninput=renderTable);
+    $('clearFilters').onclick=()=>{$('searchInput').value='';$('filterStatus').value='';$('filterPriority').value='';$('filterTone').value='';$('filterQueue').value='';renderTable();announce('Filters cleared')};
     $('criticalOnly').onclick=()=>{$('filterPriority').value='CRITICAL';renderTable();announce('Showing critical tickets')};
     $('refreshQueue').onclick=async()=>{await loadDashboard();await loadEmails();announce('Queue refreshed')};
     document.querySelectorAll('.sort-btn').forEach(btn=>btn.onclick=()=>{const f=btn.dataset.sort;if(sortField===f)sortAsc=!sortAsc;else{sortField=f;sortAsc=false}document.querySelectorAll('.sort-btn').forEach(b=>b.removeAttribute('aria-sort'));btn.setAttribute('aria-sort',sortAsc?'ascending':'descending');renderTable()});
-    async function init(){const cfg=await fetch('/api/config').then(r=>r.json());apiKey=cfg.apiKey;emailDeliveryMode=cfg.emailDeliveryMode||'local';$('deliveryBanner').innerHTML+=' <strong>Outbound:</strong> '+(emailDeliveryMode==='mailgun'?'Mailgun delivery is configured.':'local demo mode stores replies and generates threadable message IDs until Mailgun keys are added.');await loadDashboard();await loadEmails();setInterval(loadEmails,30000)}
+    async function init(){const cfg=await fetch('/api/config').then(r=>r.json());apiKey=cfg.apiKey;emailDeliveryMode=cfg.emailDeliveryMode||'local';$('deliveryBanner').innerHTML+=' <strong>Outbound:</strong> '+(emailDeliveryMode==='mailgun'?'Mailgun delivery is configured.':'local demo mode stores replies and generates threadable message IDs until Mailgun keys are added.');await loadDashboard();await loadOps();await loadEmails();setInterval(loadEmails,30000)}
     init().catch(()=>{$('emailTable').innerHTML='<tr><td colspan="8">API connection failed</td></tr>';$('queueCount').textContent='API connection failed'});
   </script>
 </body>
