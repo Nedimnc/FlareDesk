@@ -30,11 +30,18 @@ All `/api/*` routes require `Authorization: Bearer <FLAREDESK_API_KEY>` except `
 - `PATCH /api/emails/:id` — update status, assignee, queue, or workspace
 - `GET /api/emails/:id/thread` — full conversation, ticket, and activity timeline
 - `GET /api/emails/:id/reply-draft` — local AI-style reply draft with macro and knowledge suggestions
+- `GET /api/emails/:id/private-messages` — ticket-scoped private member chat
+- `POST /api/emails/:id/private-messages` — send a private message to another team member
+- `POST /api/emails/:id/private-messages/read` — mark private messages read for the current agent
+- `GET /api/emails/:id/action-plan` — recommended ticket playbook/checklist
+- `PATCH /api/emails/:id/tasks/:taskId` — complete or reopen an action-plan task
+- `GET /api/emails/:id/customer-context` — sender history and risk summary
 - `POST /api/emails/:id/csat` — record customer satisfaction rating
 - `GET /api/dashboard` — aggregate stats, SLA health, CSAT, queues, and tone breakdown
 - `GET /api/reports/overview` — operational reporting summary
 - `GET /api/macros` — canned response templates
 - `GET /api/queues` — queue metadata and active counts
+- `GET /api/team-members` — demo teammate directory for private chat recipients
 - `GET /api/workspaces` — demo workspace metadata
 - `POST /api/webhooks/inbound-email` — Mailgun-shaped inbound email ingest
 - `POST /api/emails/:id/responses` — agent reply; sends through Mailgun when configured, otherwise logs locally for demo
@@ -45,6 +52,9 @@ All `/api/*` routes require `Authorization: Bearer <FLAREDESK_API_KEY>` except `
 - **AI triage:** Claude analysis when `ANTHROPIC_API_KEY` is set; free heuristic fallback when it is not.
 - **Email loop:** Mailgun-shaped inbound webhook, Message-ID dedupe, In-Reply-To/References threading, and outbound Mailgun delivery with local demo fallback.
 - **Accessible dashboard:** light/dark mode, skip link, landmarks, labeled controls, visible focus states, keyboard-openable ticket rows, search, filters, and a floating detail panel.
+- **Private member chat:** ticket-scoped teammate messages with recipients, read tracking, and audit events; these stay separate from customer replies and internal notes.
+- **Action plans:** each ticket gets a recommended checklist based on queue, priority, and escalation risk.
+- **Customer context:** agents can see sender history, open/critical counts, average distress, and recent prior tickets from the detail panel.
 - **SLA timers:** first-response and resolution deadlines based on priority, `on_track` / `due_soon` / `breached` / `met` tracking, and critical alert events.
 - **Critical alerts:** CRITICAL tickets route to Escalations and log a senior-agent alert.
 - **Reply assist:** macro-powered draft replies and knowledge-base suggestions without paid calls.
@@ -53,6 +63,12 @@ All `/api/*` routes require `Authorization: Bearer <FLAREDESK_API_KEY>` except `
 - **CSAT:** surveys are queued when tickets resolve/close and ratings feed dashboard metrics.
 - **Reporting:** queue, priority, SLA, first-response, tone, escalation-risk, and CSAT metrics.
 - **Workspace/auth foundation:** bearer auth remains demo-simple, but requests now carry agent and workspace context via environment/header values.
+
+## Private chat vs internal notes
+
+- **Internal notes** are shared ticket annotations for the support team.
+- **Private chat** is for direct teammate coordination from the same ticket, e.g. asking a billing lead to review a refund before replying.
+- Private chat messages are never sent to customers and do not appear in the customer conversation thread.
 
 ## Stack
 

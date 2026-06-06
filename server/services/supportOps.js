@@ -106,6 +106,14 @@ const KB_ARTICLES = [
   },
 ];
 
+const TEAM_MEMBERS = [
+  { id: 'sarah', name: 'Sarah Chen', role: 'Billing Lead', queue: 'Billing' },
+  { id: 'marcus', name: 'Marcus Webb', role: 'Escalation Manager', queue: 'Escalations' },
+  { id: 'priya', name: 'Priya Nair', role: 'Technical Specialist', queue: 'Technical' },
+  { id: 'alex', name: 'Alex Rivera', role: 'Customer Success Lead', queue: 'Success' },
+  { id: 'support', name: 'Support Agent', role: 'General Support', queue: 'General' },
+];
+
 function addHours(date, hours) {
   return new Date(date.getTime() + hours * 60 * 60 * 1000);
 }
@@ -204,11 +212,45 @@ function draftFromTicket(ticket) {
   return getMacro('friendly-followup').body;
 }
 
+function actionPlanForTicket(ticket) {
+  const queue = ticket.queue || classifyQueue(ticket);
+  const tasks = [];
+
+  if (ticket.priority === 'CRITICAL') {
+    tasks.push('Confirm senior owner and response deadline');
+    tasks.push('Send a concrete customer update before first-response SLA');
+  }
+
+  if (queue === 'Billing' || ticket.escalation_risk === 'Chargeback') {
+    tasks.push('Verify invoices, charges, refunds, and credit memo path');
+    tasks.push('Document refund or chargeback decision before replying');
+  }
+
+  if (queue === 'Technical') {
+    tasks.push('Check logs, recent deploys, and affected integration scope');
+    tasks.push('Share mitigation, owner, and ETA in the next update');
+  }
+
+  if (queue === 'Success' || ticket.escalation_risk === 'Churn') {
+    tasks.push('Offer a success or retention call with clear agenda');
+    tasks.push('Capture renewal risk and next commercial step');
+  }
+
+  if (!tasks.length) {
+    tasks.push('Summarize the customer ask and choose the next owner');
+    tasks.push('Send a clear next step or close with resolution notes');
+  }
+
+  tasks.push('Review private chat and internal notes before customer reply');
+  return [...new Set(tasks)];
+}
+
 module.exports = {
   SLA_POLICIES,
   QUEUES,
   MACROS,
   KB_ARTICLES,
+  TEAM_MEMBERS,
   calculateSlaDeadlines,
   computeSlaStatus,
   classifyQueue,
@@ -216,4 +258,5 @@ module.exports = {
   buildReplyDraft,
   getMacro,
   suggestKbArticles,
+  actionPlanForTicket,
 };
