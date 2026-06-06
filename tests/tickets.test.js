@@ -121,7 +121,7 @@ describe('Ticket threads and responses', () => {
     const plan = await request(app).get(`/api/emails/${created.body.id}/action-plan`).set(AUTH);
     expect(plan.status).toBe(200);
     expect(plan.body.tasks.length).toBeGreaterThan(0);
-    expect(plan.body.tasks.some((task) => /refund|chargeback/i.test(task.title))).toBe(true);
+    expect(plan.body.tasks.some((task) => /next owner|private chat/i.test(task.title))).toBe(true);
 
     const completed = await request(app)
       .patch(`/api/emails/${created.body.id}/tasks/${plan.body.tasks[0].id}`)
