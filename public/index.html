@@ -112,6 +112,8 @@
     .thread-msg{border-radius:16px;padding:.9rem;border:1px solid var(--border);background:var(--surface-2)}
     .thread-msg.outbound{border-color:var(--accent);background:var(--accent-soft)}
     .thread-msg.internal{border-color:var(--purple);background:var(--purple-soft)}
+    .private-msg{border-radius:16px;padding:.85rem;border:1px solid var(--purple);background:var(--purple-soft)}
+    .private-form{display:grid;gap:.7rem;margin-top:auto;background:var(--surface-2);border:1px solid var(--border);border-radius:16px;padding:1rem}
     .thread-meta{font-size:.78rem;color:var(--muted);margin-bottom:.45rem;font-family:'IBM Plex Mono',monospace;line-height:1.4}
     .thread-text{font-size:.95rem;line-height:1.55;white-space:pre-wrap}
     .event-item{font-size:.9rem;padding:.65rem 0;border-bottom:1px dashed var(--border);color:var(--muted);line-height:1.5}
@@ -269,9 +271,11 @@
     <div class="detail-tabs" role="tablist" aria-label="Ticket detail sections">
       <button type="button" class="tab active" id="conversationTab" role="tab" aria-selected="true" aria-controls="tabConversation" data-tab="conversation">Conversation</button>
       <button type="button" class="tab" id="activityTab" role="tab" aria-selected="false" aria-controls="tabActivity" data-tab="activity">Activity</button>
+      <button type="button" class="tab" id="privateTab" role="tab" aria-selected="false" aria-controls="tabPrivate" data-tab="private">Private chat <span id="privateUnread"></span></button>
     </div>
     <div class="detail-body" id="tabConversation" role="tabpanel" aria-labelledby="conversationTab"></div>
     <div class="detail-body hidden" id="tabActivity" role="tabpanel" aria-labelledby="activityTab"></div>
+    <div class="detail-body hidden" id="tabPrivate" role="tabpanel" aria-labelledby="privateTab"></div>
     <div class="reply-box" id="replyBox">
       <div class="reply-tabs" aria-label="Reply type">
         <button type="button" class="reply-tab active" data-reply="customer" aria-pressed="true">Reply to customer</button>
@@ -305,6 +309,7 @@
   <div class="live-region hidden" id="liveRegion" role="status" aria-live="polite"></div>
   <script>
     let apiKey='',emailDeliveryMode='local',emails=[],thread=null,selectedId=null,highlightId=null;
+    let teamMembers=[];
     let macros=[],queues=[],report=null;
     let sortField='distress_score',sortAsc=false,replyInternal=false;
     const $=id=>document.getElementById(id);
@@ -331,7 +336,7 @@
     async function loadDashboard(){const s=await api('/api/dashboard');const items=[['Tickets',s.total],['Open',s.open],['Critical',s.critical],['Awaiting reply',s.awaiting_response],['Responses',s.total_responses],['Closed',s.closed]];
       $('topbar').innerHTML=items.map(([l,n])=>'<article class="stat-card"><div class="num">'+n+'</div><div class="label">'+l+'</div></article>').join('');
       $('miniStats').innerHTML='<article class="mini-stat"><div class="val">'+s.avg_distress_score+'</div><div class="lbl">Average distress</div></article><article class="mini-stat"><div class="val">'+s.critical+'</div><div class="lbl">Critical active</div></article><article class="mini-stat"><div class="val">'+s.sla_breached+'</div><div class="lbl">SLA breached</div></article>'}
-    async function loadOps(){const [macroData,queueData,reportData]=await Promise.all([api('/api/macros'),api('/api/queues'),api('/api/reports/overview')]);macros=macroData;queues=queueData;report=reportData;
+    async function loadOps(){const [macroData,queueData,reportData,teamData]=await Promise.all([api('/api/macros'),api('/api/queues'),api('/api/reports/overview'),api('/api/team-members')]);macros=macroData;queues=queueData;report=reportData;teamMembers=teamData;
       $('filterQueue').innerHTML='<option value="">All queues</option>'+queues.map(q=>'<option value="'+esc(q.id)+'">'+esc(q.label)+'</option>').join('');
       $('macroSelect').innerHTML='<option value="">Suggested draft</option>'+macros.map(m=>'<option value="'+esc(m.id)+'">'+esc(m.title)+'</option>').join('');
       const d=report.dashboard;$('opsPanel').innerHTML=[['SLA breached',d.sla_breached],['Due soon',d.sla_due_soon],['Critical alerts',d.critical_alerts],['Avg CSAT',d.avg_csat==null?'--':d.avg_csat+'/5']].map(([l,n])=>'<article class="ops-item"><strong>'+n+'</strong><span>'+l+'</span></article>').join('')}
@@ -340,16 +345,22 @@
       $('detailMeta').innerHTML='<span>'+esc(unesc(t.sender))+'</span>'+badge('prio-'+t.priority,t.priority)+badge('tone-'+t.tone_label,t.tone_label)+'<span class="meta-pill" id="detailQueueMeta">Queue: '+esc(t.queue||'General')+'</span><span class="meta-pill" id="detailSlaMeta">SLA: '+esc((t.sla_status||'on_track').replace('_',' '))+'</span><span>Risk: '+esc(t.escalation_risk||'None')+'</span>';$('statusSelect').value=t.status;$('queueSelect').value=t.queue||'General';
       const msgs=[{type:'inbound',author:t.sender,time:t.received_at,body:t.body,label:'Original inbound email',status:'received'},...thread.responses.map(r=>({type:r.is_internal?'internal':r.author_type==='customer'?'inbound':'outbound',author:r.author,time:r.created_at,body:r.body,label:r.is_internal?'Internal note':r.author_type==='customer'?'Customer reply':'Agent reply',status:r.delivery_status}))];
       $('tabConversation').innerHTML='<p style="color:var(--muted);line-height:1.5;margin:0">'+esc(t.summary||'')+'</p>'+msgs.map(m=>'<article class="thread-msg '+m.type+'"><div class="thread-meta">'+esc(m.label)+' - '+esc(unesc(m.author))+' - '+new Date(m.time).toLocaleString()+' - '+esc(m.status)+'</div><div class="thread-text">'+esc(unesc(m.body))+'</div></article>').join('');
-      $('tabActivity').innerHTML=thread.events.slice().reverse().map(ev=>'<div class="event-item"><strong>'+esc(ev.event_type)+'</strong> - '+esc(ev.detail||'')+' <span>('+new Date(ev.created_at).toLocaleString()+')</span></div>').join('')}
-    async function openDetail(id){selectedId=id;thread=await api('/api/emails/'+id+'/thread');renderThread();$('detailPanel').classList.add('open');$('detailPanel').setAttribute('aria-hidden','false');$('overlay').classList.add('show');renderTable();if(thread.ticket.status==='Closed')$('replyBox').classList.add('hidden');else $('replyBox').classList.remove('hidden');$('closeDetail').focus();announce('Opened '+(thread.ticket.ticket_number||'ticket'))}
+      $('tabActivity').innerHTML=thread.events.slice().reverse().map(ev=>'<div class="event-item"><strong>'+esc(ev.event_type)+'</strong> - '+esc(ev.detail||'')+' <span>('+new Date(ev.created_at).toLocaleString()+')</span></div>').join('');
+      renderPrivateChat()}
+    function renderPrivateChat(){const messages=thread.private_messages||[];$('privateUnread').textContent=messages.length?'('+messages.length+')':'';const options=teamMembers.map(m=>'<option value="'+esc(m.name)+'">'+esc(m.name)+' - '+esc(m.role)+'</option>').join('');
+      $('tabPrivate').innerHTML='<p style="color:var(--muted);line-height:1.5;margin:0">Private member messages stay attached to this ticket and are never sent to the customer.</p>'+(messages.length?messages.map(m=>'<article class="private-msg"><div class="thread-meta">'+esc(m.sender)+' to '+esc(m.recipient)+' - '+new Date(m.created_at).toLocaleString()+(m.read_at?' - read':' - unread')+'</div><div class="thread-text">'+esc(unesc(m.body))+'</div></article>').join(''):'<div class="event-item">No private messages yet.</div>')+'<form class="private-form" id="privateForm"><label for="privateRecipient">Message teammate privately</label><select class="status-select" id="privateRecipient">'+options+'</select><label for="privateBody">Private message</label><textarea id="privateBody" placeholder="Ask a teammate for help without adding an internal note..."></textarea><button type="submit" class="btn">Send private message</button></form>';
+      const form=$('privateForm');if(form)form.onsubmit=sendPrivateMessage}
+    async function openDetail(id){selectedId=id;thread=await api('/api/emails/'+id+'/thread');renderThread();setActiveTab('conversation');$('detailPanel').classList.add('open');$('detailPanel').setAttribute('aria-hidden','false');$('overlay').classList.add('show');renderTable();if(thread.ticket.status==='Closed')$('replyBox').classList.add('hidden');else $('replyBox').classList.remove('hidden');$('closeDetail').focus();announce('Opened '+(thread.ticket.ticket_number||'ticket'))}
     function closeDetail(){$('detailPanel').classList.remove('open');$('detailPanel').setAttribute('aria-hidden','true');$('overlay').classList.remove('show');selectedId=null;renderTable();announce('Ticket details closed')}
     async function patchTicket(fields){if(!selectedId)return;const updated=await api('/api/emails/'+selectedId,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(fields)});if(thread&&thread.ticket)thread.ticket={...thread.ticket,...updated};renderThread();await loadOps();await loadEmails();thread=await api('/api/emails/'+selectedId+'/thread');renderThread();await loadDashboard();announce('Ticket updated')}
-    function setActiveTab(name){document.querySelectorAll('.tab').forEach(tab=>{const active=tab.dataset.tab===name;tab.classList.toggle('active',active);tab.setAttribute('aria-selected',String(active))});$('tabConversation').classList.toggle('hidden',name!=='conversation');$('tabActivity').classList.toggle('hidden',name!=='activity')}
+    function setActiveTab(name){document.querySelectorAll('.tab').forEach(tab=>{const active=tab.dataset.tab===name;tab.classList.toggle('active',active);tab.setAttribute('aria-selected',String(active))});$('tabConversation').classList.toggle('hidden',name!=='conversation');$('tabActivity').classList.toggle('hidden',name!=='activity');$('tabPrivate').classList.toggle('hidden',name!=='private');if(name==='private'){$('replyBox').classList.add('hidden');markPrivateRead()}else if(thread&&thread.ticket.status!=='Closed')$('replyBox').classList.remove('hidden')}
     $('themeToggle').onclick=()=>{const current=document.documentElement.getAttribute('data-theme')||'light';setTheme(current==='dark'?'light':'dark')};
     $('closeDetail').onclick=closeDetail;$('overlay').onclick=closeDetail;document.addEventListener('keydown',ev=>{if(ev.key==='Escape'&&$('detailPanel').classList.contains('open'))closeDetail()});
     document.querySelectorAll('.tab').forEach(tab=>tab.onclick=()=>setActiveTab(tab.dataset.tab));
     document.querySelectorAll('.reply-tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.reply-tab').forEach(x=>{x.classList.remove('active');x.setAttribute('aria-pressed','false')});b.classList.add('active');b.setAttribute('aria-pressed','true');replyInternal=b.dataset.reply==='internal'});
     $('sendReply').onclick=async()=>{const body=$('replyBody').value.trim();if(!body||!selectedId){announce('Add a message before sending');return}const btn=$('sendReply');btn.disabled=true;try{await api('/api/emails/'+selectedId+'/responses',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({body,is_internal:replyInternal})});$('replyBody').value='';await loadEmails();thread=await api('/api/emails/'+selectedId+'/thread');renderThread();await loadDashboard();announce(replyInternal?'Internal note added':'Reply saved')}finally{btn.disabled=false}};
+    async function sendPrivateMessage(ev){ev.preventDefault();if(!selectedId)return;const recipient=$('privateRecipient').value,body=$('privateBody').value.trim();if(!body){announce('Add a private message before sending');return}await api('/api/emails/'+selectedId+'/private-messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({recipient,body})});thread=await api('/api/emails/'+selectedId+'/thread');renderThread();setActiveTab('private');announce('Private message sent')}
+    async function markPrivateRead(){if(!selectedId)return;await api('/api/emails/'+selectedId+'/private-messages/read',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})}).catch(()=>null)}
     $('draftReply').onclick=async()=>{if(!selectedId)return;const macro=$('macroSelect').value;const draft=await api('/api/emails/'+selectedId+'/reply-draft'+(macro?'?macro_id='+encodeURIComponent(macro):''));$('replyBody').value=draft.body;$('kbSuggestions').innerHTML=draft.knowledge_base.map(k=>'<div><a href="#" aria-disabled="true">'+esc(k.title)+'</a> - '+esc(k.summary)+'</div>').join('')||'<div>No matching knowledge suggestions.</div>';announce('Reply draft generated')};
     $('statusSelect').onchange=()=>patchTicket({status:$('statusSelect').value});
     $('queueSelect').onchange=()=>{const el=$('detailQueueMeta');if(el)el.textContent='Queue: '+$('queueSelect').value;patchTicket({queue:$('queueSelect').value})};

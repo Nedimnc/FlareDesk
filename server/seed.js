@@ -152,6 +152,11 @@ function seedResponses() {
     if (s.id === 12) db.updateEmail(12, { status: 'Waiting on Customer', assigned_to: 'Alex Rivera' }, 'system');
     if (s.id === 10) db.updateEmail(10, { status: 'Resolved' }, 'system');
   }
+  db.insertPrivateMessage(1, {
+    sender: 'Sarah Chen',
+    recipient: 'Marcus Webb',
+    body: 'Can you sanity-check the Amex chargeback angle before I send the next customer update?',
+  });
 }
 
 function seed() {

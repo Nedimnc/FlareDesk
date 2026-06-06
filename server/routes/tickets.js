@@ -1,6 +1,8 @@
 const express = require('express');
+const validator = require('validator');
 const db = require('../services/database');
 const { sanitizeResponseInput } = require('../middleware/sanitize');
+const { stripHtml } = require('../middleware/sanitize');
 const { sendTicketReply } = require('../services/emailDelivery');
 
 const router = express.Router({ mergeParams: true });
@@ -26,6 +28,83 @@ router.get('/:id/events', (req, res, next) => {
     const id = Number(req.params.id);
     const events = db.getEvents(id);
     res.json(events);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/:id/private-messages', (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1) {
+      return res.status(400).json({ error: 'Invalid ticket id' });
+    }
+
+    const ticket = db.getEmailById(id);
+    if (!ticket) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+
+    const recipient = (req.agent && req.agent.name) || 'Support Agent';
+    res.json({
+      messages: db.getPrivateMessages(id),
+      unread_count: db.getPrivateUnreadCount(id, recipient),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/:id/private-messages', (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1) {
+      return res.status(400).json({ error: 'Invalid ticket id' });
+    }
+
+    const body = typeof req.body.body === 'string' ? stripHtml(req.body.body).trim() : '';
+    const recipient = typeof req.body.recipient === 'string' ? stripHtml(req.body.recipient).trim() : '';
+    if (!body) {
+      return res.status(400).json({ error: 'Private message body is required' });
+    }
+    if (body.length > 5000) {
+      return res.status(400).json({ error: 'Private message body must be at most 5000 characters' });
+    }
+    if (!recipient || recipient.length > 255) {
+      return res.status(400).json({ error: 'Private message recipient is required' });
+    }
+
+    const rawSender = req.body.sender || (req.agent && req.agent.name) || 'Support Agent';
+    const sender = stripHtml(String(rawSender)).trim().slice(0, 255) || 'Support Agent';
+    const message = db.insertPrivateMessage(id, {
+      sender: validator.escape(sender),
+      recipient: validator.escape(recipient),
+      body: validator.escape(body),
+    });
+    if (!message) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+
+    res.status(201).json(message);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/:id/private-messages/read', (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1) {
+      return res.status(400).json({ error: 'Invalid ticket id' });
+    }
+
+    const recipient = req.body.recipient || (req.agent && req.agent.name) || 'Support Agent';
+    const result = db.markPrivateMessagesRead(id, recipient);
+    if (!result) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+
+    res.json(result);
   } catch (err) {
     next(err);
   }

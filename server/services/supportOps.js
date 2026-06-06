@@ -106,6 +106,14 @@ const KB_ARTICLES = [
   },
 ];
 
+const TEAM_MEMBERS = [
+  { id: 'sarah', name: 'Sarah Chen', role: 'Billing Lead', queue: 'Billing' },
+  { id: 'marcus', name: 'Marcus Webb', role: 'Escalation Manager', queue: 'Escalations' },
+  { id: 'priya', name: 'Priya Nair', role: 'Technical Specialist', queue: 'Technical' },
+  { id: 'alex', name: 'Alex Rivera', role: 'Customer Success Lead', queue: 'Success' },
+  { id: 'support', name: 'Support Agent', role: 'General Support', queue: 'General' },
+];
+
 function addHours(date, hours) {
   return new Date(date.getTime() + hours * 60 * 60 * 1000);
 }
@@ -209,6 +217,7 @@ module.exports = {
   QUEUES,
   MACROS,
   KB_ARTICLES,
+  TEAM_MEMBERS,
   calculateSlaDeadlines,
   computeSlaStatus,
   classifyQueue,

@@ -97,11 +97,24 @@ function initSchema(database) {
       FOREIGN KEY (email_id) REFERENCES emails(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS private_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email_id INTEGER NOT NULL,
+      sender TEXT NOT NULL,
+      recipient TEXT NOT NULL,
+      body TEXT NOT NULL,
+      read_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (email_id) REFERENCES emails(id) ON DELETE CASCADE
+    );
+
     CREATE INDEX IF NOT EXISTS idx_responses_email ON ticket_responses(email_id);
     CREATE INDEX IF NOT EXISTS idx_events_email ON ticket_events(email_id);
     CREATE INDEX IF NOT EXISTS idx_emails_message_id ON emails(message_id);
     CREATE INDEX IF NOT EXISTS idx_responses_provider_message_id ON ticket_responses(provider_message_id);
     CREATE INDEX IF NOT EXISTS idx_csat_email ON csat_surveys(email_id);
+    CREATE INDEX IF NOT EXISTS idx_private_messages_email ON private_messages(email_id);
+    CREATE INDEX IF NOT EXISTS idx_private_messages_recipient ON private_messages(recipient, read_at);
   `);
   database
     .prepare(
@@ -158,6 +171,8 @@ function migrateSchema(database) {
     CREATE INDEX IF NOT EXISTS idx_emails_sla_status ON emails(sla_status);
     CREATE INDEX IF NOT EXISTS idx_responses_provider_message_id ON ticket_responses(provider_message_id);
     CREATE INDEX IF NOT EXISTS idx_csat_email ON csat_surveys(email_id);
+    CREATE INDEX IF NOT EXISTS idx_private_messages_email ON private_messages(email_id);
+    CREATE INDEX IF NOT EXISTS idx_private_messages_recipient ON private_messages(recipient, read_at);
   `);
 
   database
@@ -183,13 +198,14 @@ function recordEvent(emailId, eventType, actor, detail) {
 function clearEmails() {
   const conn = getDb();
   conn.prepare('DELETE FROM csat_surveys').run();
+  conn.prepare('DELETE FROM private_messages').run();
   conn.prepare('DELETE FROM ticket_responses').run();
   conn.prepare('DELETE FROM ticket_events').run();
   conn.prepare('DELETE FROM emails').run();
   try {
     conn
       .prepare(
-        "DELETE FROM sqlite_sequence WHERE name IN ('emails', 'ticket_responses', 'ticket_events', 'csat_surveys')"
+        "DELETE FROM sqlite_sequence WHERE name IN ('emails', 'ticket_responses', 'ticket_events', 'csat_surveys', 'private_messages')"
       )
       .run();
   } catch {
@@ -378,6 +394,60 @@ function getEvents(emailId) {
     .all(emailId);
 }
 
+function getPrivateMessages(emailId) {
+  return getDb()
+    .prepare('SELECT * FROM private_messages WHERE email_id = ? ORDER BY created_at ASC, id ASC')
+    .all(emailId);
+}
+
+function getPrivateUnreadCount(emailId, recipient) {
+  if (!recipient) return 0;
+  return getDb()
+    .prepare(
+      `SELECT COUNT(*) as count
+       FROM private_messages
+       WHERE email_id = ? AND recipient = ? AND read_at IS NULL`
+    )
+    .get(emailId, recipient).count;
+}
+
+function insertPrivateMessage(emailId, { sender, recipient, body }) {
+  const ticket = getEmailById(emailId);
+  if (!ticket) return null;
+
+  const result = getDb()
+    .prepare(
+      `INSERT INTO private_messages (email_id, sender, recipient, body)
+       VALUES (@email_id, @sender, @recipient, @body)`
+    )
+    .run({ email_id: emailId, sender, recipient, body });
+
+  recordEvent(emailId, 'private_message', sender, `Private message to ${recipient}`);
+  return getDb()
+    .prepare('SELECT * FROM private_messages WHERE id = ?')
+    .get(result.lastInsertRowid);
+}
+
+function markPrivateMessagesRead(emailId, recipient) {
+  const ticket = getEmailById(emailId);
+  if (!ticket) return null;
+
+  const readAt = new Date().toISOString();
+  const result = getDb()
+    .prepare(
+      `UPDATE private_messages
+       SET read_at = @read_at
+       WHERE email_id = @email_id AND recipient = @recipient AND read_at IS NULL`
+    )
+    .run({ email_id: emailId, recipient, read_at: readAt });
+
+  if (result.changes > 0) {
+    recordEvent(emailId, 'private_messages_read', recipient, `${result.changes} private message(s) read`);
+  }
+
+  return { read_at: readAt, updated: result.changes };
+}
+
 function getTicketThread(id) {
   const ticket = getEmailById(id);
   if (!ticket) return null;
@@ -385,6 +455,7 @@ function getTicketThread(id) {
     ticket,
     responses: getResponses(id),
     events: getEvents(id),
+    private_messages: getPrivateMessages(id),
   };
 }
 
@@ -524,6 +595,7 @@ function updateEmail(id, fields, actor = 'agent') {
 function deleteEmail(id) {
   const conn = getDb();
   conn.prepare('DELETE FROM csat_surveys WHERE email_id = ?').run(id);
+  conn.prepare('DELETE FROM private_messages WHERE email_id = ?').run(id);
   conn.prepare('DELETE FROM ticket_responses WHERE email_id = ?').run(id);
   conn.prepare('DELETE FROM ticket_events WHERE email_id = ?').run(id);
   const result = conn.prepare('DELETE FROM emails WHERE id = ?').run(id);
@@ -747,6 +819,10 @@ module.exports = {
   insertResponse,
   getResponses,
   getEvents,
+  getPrivateMessages,
+  getPrivateUnreadCount,
+  insertPrivateMessage,
+  markPrivateMessagesRead,
   recordEvent,
   generateTicketNumber,
   closeDb,
