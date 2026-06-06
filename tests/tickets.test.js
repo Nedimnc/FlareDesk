@@ -107,4 +107,47 @@ describe('Ticket threads and responses', () => {
     expect(res.status).toBe(200);
     expect(res.body.some((member) => member.name === 'Marcus Webb')).toBe(true);
   });
+
+  test('action plan tasks are generated and can be completed', async () => {
+    const created = await request(app)
+      .post('/api/emails')
+      .set(AUTH)
+      .send({
+        sender: 'risk@test.com',
+        subject: 'Refund and chargeback',
+        body: 'I need a refund or I am filing a chargeback today.',
+      });
+
+    const plan = await request(app).get(`/api/emails/${created.body.id}/action-plan`).set(AUTH);
+    expect(plan.status).toBe(200);
+    expect(plan.body.tasks.length).toBeGreaterThan(0);
+    expect(plan.body.tasks.some((task) => /refund|chargeback/i.test(task.title))).toBe(true);
+
+    const completed = await request(app)
+      .patch(`/api/emails/${created.body.id}/tasks/${plan.body.tasks[0].id}`)
+      .set(AUTH)
+      .send({ is_completed: true });
+    expect(completed.status).toBe(200);
+    expect(completed.body.is_completed).toBe(1);
+    expect(completed.body.completed_by).toBe('Support Agent');
+  });
+
+  test('customer context summarizes sender history', async () => {
+    const first = await request(app)
+      .post('/api/emails')
+      .set(AUTH)
+      .send({ sender: 'repeat@test.com', subject: 'First issue', body: 'Need help today.' });
+    await request(app)
+      .post('/api/emails')
+      .set(AUTH)
+      .send({ sender: 'repeat@test.com', subject: 'Second issue', body: 'Need help again.' });
+
+    const context = await request(app)
+      .get(`/api/emails/${first.body.id}/customer-context`)
+      .set(AUTH);
+    expect(context.status).toBe(200);
+    expect(context.body.sender).toBe('repeat@test.com');
+    expect(context.body.total_tickets).toBe(2);
+    expect(context.body.previous_tickets).toHaveLength(1);
+  });
 });

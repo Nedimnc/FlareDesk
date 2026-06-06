@@ -33,6 +33,9 @@ All `/api/*` routes require `Authorization: Bearer <FLAREDESK_API_KEY>` except `
 - `GET /api/emails/:id/private-messages` — ticket-scoped private member chat
 - `POST /api/emails/:id/private-messages` — send a private message to another team member
 - `POST /api/emails/:id/private-messages/read` — mark private messages read for the current agent
+- `GET /api/emails/:id/action-plan` — recommended ticket playbook/checklist
+- `PATCH /api/emails/:id/tasks/:taskId` — complete or reopen an action-plan task
+- `GET /api/emails/:id/customer-context` — sender history and risk summary
 - `POST /api/emails/:id/csat` — record customer satisfaction rating
 - `GET /api/dashboard` — aggregate stats, SLA health, CSAT, queues, and tone breakdown
 - `GET /api/reports/overview` — operational reporting summary
@@ -50,6 +53,8 @@ All `/api/*` routes require `Authorization: Bearer <FLAREDESK_API_KEY>` except `
 - **Email loop:** Mailgun-shaped inbound webhook, Message-ID dedupe, In-Reply-To/References threading, and outbound Mailgun delivery with local demo fallback.
 - **Accessible dashboard:** light/dark mode, skip link, landmarks, labeled controls, visible focus states, keyboard-openable ticket rows, search, filters, and a floating detail panel.
 - **Private member chat:** ticket-scoped teammate messages with recipients, read tracking, and audit events; these stay separate from customer replies and internal notes.
+- **Action plans:** each ticket gets a recommended checklist based on queue, priority, and escalation risk.
+- **Customer context:** agents can see sender history, open/critical counts, average distress, and recent prior tickets from the detail panel.
 - **SLA timers:** first-response and resolution deadlines based on priority, `on_track` / `due_soon` / `breached` / `met` tracking, and critical alert events.
 - **Critical alerts:** CRITICAL tickets route to Escalations and log a senior-agent alert.
 - **Reply assist:** macro-powered draft replies and knowledge-base suggestions without paid calls.

@@ -55,6 +55,63 @@ router.get('/:id/private-messages', (req, res, next) => {
   }
 });
 
+router.get('/:id/action-plan', (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1) {
+      return res.status(400).json({ error: 'Invalid ticket id' });
+    }
+
+    const ticket = db.getEmailById(id);
+    if (!ticket) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+
+    res.json({ tasks: db.getTicketTasks(id) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/:id/customer-context', (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1) {
+      return res.status(400).json({ error: 'Invalid ticket id' });
+    }
+
+    const context = db.getCustomerContext(id);
+    if (!context) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+
+    res.json(context);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch('/:id/tasks/:taskId', (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    const taskId = Number(req.params.taskId);
+    if (!Number.isInteger(id) || id < 1 || !Number.isInteger(taskId) || taskId < 1) {
+      return res.status(400).json({ error: 'Invalid task id' });
+    }
+
+    const task = db.updateTicketTask(id, taskId, {
+      is_completed: Boolean(req.body.is_completed),
+      actor: (req.agent && req.agent.name) || 'agent',
+    });
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    res.json(task);
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.post('/:id/private-messages', (req, res, next) => {
   try {
     const id = Number(req.params.id);

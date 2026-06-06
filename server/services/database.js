@@ -5,6 +5,7 @@ const {
   classifyQueue,
   computeSlaStatus,
   suggestedAssignee,
+  actionPlanForTicket,
 } = require('./supportOps');
 
 const DB_PATH = process.env.FLAREDESK_DB_PATH || path.join(__dirname, '../../flaredesk.db');
@@ -108,6 +109,17 @@ function initSchema(database) {
       FOREIGN KEY (email_id) REFERENCES emails(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS ticket_tasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      is_completed INTEGER NOT NULL DEFAULT 0,
+      completed_at DATETIME,
+      completed_by TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (email_id) REFERENCES emails(id) ON DELETE CASCADE
+    );
+
     CREATE INDEX IF NOT EXISTS idx_responses_email ON ticket_responses(email_id);
     CREATE INDEX IF NOT EXISTS idx_events_email ON ticket_events(email_id);
     CREATE INDEX IF NOT EXISTS idx_emails_message_id ON emails(message_id);
@@ -115,6 +127,7 @@ function initSchema(database) {
     CREATE INDEX IF NOT EXISTS idx_csat_email ON csat_surveys(email_id);
     CREATE INDEX IF NOT EXISTS idx_private_messages_email ON private_messages(email_id);
     CREATE INDEX IF NOT EXISTS idx_private_messages_recipient ON private_messages(recipient, read_at);
+    CREATE INDEX IF NOT EXISTS idx_ticket_tasks_email ON ticket_tasks(email_id);
   `);
   database
     .prepare(
@@ -173,6 +186,7 @@ function migrateSchema(database) {
     CREATE INDEX IF NOT EXISTS idx_csat_email ON csat_surveys(email_id);
     CREATE INDEX IF NOT EXISTS idx_private_messages_email ON private_messages(email_id);
     CREATE INDEX IF NOT EXISTS idx_private_messages_recipient ON private_messages(recipient, read_at);
+    CREATE INDEX IF NOT EXISTS idx_ticket_tasks_email ON ticket_tasks(email_id);
   `);
 
   database
@@ -199,13 +213,14 @@ function clearEmails() {
   const conn = getDb();
   conn.prepare('DELETE FROM csat_surveys').run();
   conn.prepare('DELETE FROM private_messages').run();
+  conn.prepare('DELETE FROM ticket_tasks').run();
   conn.prepare('DELETE FROM ticket_responses').run();
   conn.prepare('DELETE FROM ticket_events').run();
   conn.prepare('DELETE FROM emails').run();
   try {
     conn
       .prepare(
-        "DELETE FROM sqlite_sequence WHERE name IN ('emails', 'ticket_responses', 'ticket_events', 'csat_surveys', 'private_messages')"
+        "DELETE FROM sqlite_sequence WHERE name IN ('emails', 'ticket_responses', 'ticket_events', 'csat_surveys', 'private_messages', 'ticket_tasks')"
       )
       .run();
   } catch {
@@ -272,6 +287,7 @@ function insertEmail(row) {
   if (row.priority === 'CRITICAL') {
     recordEvent(id, 'critical_alert', 'system', `Alert routed to ${assignee}`);
   }
+  seedTicketTasks(id);
   return getEmailById(id);
 }
 
@@ -448,6 +464,69 @@ function markPrivateMessagesRead(emailId, recipient) {
   return { read_at: readAt, updated: result.changes };
 }
 
+function getTicketTasks(emailId) {
+  seedTicketTasks(emailId);
+  return getDb()
+    .prepare('SELECT * FROM ticket_tasks WHERE email_id = ? ORDER BY is_completed ASC, id ASC')
+    .all(emailId);
+}
+
+function seedTicketTasks(emailId) {
+  const ticket = getEmailById(emailId);
+  if (!ticket) return [];
+  const existing = getDb()
+    .prepare('SELECT COUNT(*) as count FROM ticket_tasks WHERE email_id = ?')
+    .get(emailId).count;
+  if (existing > 0) return getTicketTasksWithoutSeeding(emailId);
+
+  const insert = getDb().prepare('INSERT INTO ticket_tasks (email_id, title) VALUES (?, ?)');
+  for (const title of actionPlanForTicket(ticket)) {
+    insert.run(emailId, title);
+  }
+  recordEvent(emailId, 'action_plan_created', 'system', 'Recommended action plan generated');
+  return getTicketTasksWithoutSeeding(emailId);
+}
+
+function getTicketTasksWithoutSeeding(emailId) {
+  return getDb()
+    .prepare('SELECT * FROM ticket_tasks WHERE email_id = ? ORDER BY is_completed ASC, id ASC')
+    .all(emailId);
+}
+
+function updateTicketTask(emailId, taskId, { is_completed, actor }) {
+  const task = getDb()
+    .prepare('SELECT * FROM ticket_tasks WHERE id = ? AND email_id = ?')
+    .get(taskId, emailId);
+  if (!task) return null;
+
+  const completed = is_completed ? 1 : 0;
+  getDb()
+    .prepare(
+      `UPDATE ticket_tasks
+       SET is_completed = @is_completed,
+           completed_at = @completed_at,
+           completed_by = @completed_by
+       WHERE id = @id AND email_id = @email_id`
+    )
+    .run({
+      id: taskId,
+      email_id: emailId,
+      is_completed: completed,
+      completed_at: completed ? new Date().toISOString() : null,
+      completed_by: completed ? actor || 'agent' : null,
+    });
+
+  recordEvent(
+    emailId,
+    completed ? 'task_completed' : 'task_reopened',
+    actor || 'agent',
+    task.title
+  );
+  return getDb()
+    .prepare('SELECT * FROM ticket_tasks WHERE id = ? AND email_id = ?')
+    .get(taskId, emailId);
+}
+
 function getTicketThread(id) {
   const ticket = getEmailById(id);
   if (!ticket) return null;
@@ -456,6 +535,7 @@ function getTicketThread(id) {
     responses: getResponses(id),
     events: getEvents(id),
     private_messages: getPrivateMessages(id),
+    tasks: getTicketTasks(id),
   };
 }
 
@@ -661,6 +741,35 @@ function getCsat(emailId) {
   return getDb().prepare('SELECT * FROM csat_surveys WHERE email_id = ?').get(emailId) || null;
 }
 
+function getCustomerContext(emailId) {
+  const ticket = getEmailById(emailId);
+  if (!ticket) return null;
+  const dbConn = getDb();
+  const sender = ticket.sender;
+  const tickets = dbConn
+    .prepare(
+      `SELECT id, ticket_number, subject, priority, status, queue, distress_score, received_at
+       FROM emails
+       WHERE sender = ?
+       ORDER BY received_at DESC, id DESC`
+    )
+    .all(sender);
+  const avgRow = dbConn
+    .prepare('SELECT AVG(distress_score) as avg_score FROM emails WHERE sender = ?')
+    .get(sender);
+  const openCount = tickets.filter((item) => !['Resolved', 'Closed'].includes(item.status)).length;
+  const criticalCount = tickets.filter((item) => item.priority === 'CRITICAL').length;
+  return {
+    sender,
+    total_tickets: tickets.length,
+    open_tickets: openCount,
+    critical_tickets: criticalCount,
+    avg_distress_score:
+      avgRow.avg_score != null ? Math.round(avgRow.avg_score * 10) / 10 : null,
+    previous_tickets: tickets.filter((item) => item.id !== emailId).slice(0, 5),
+  };
+}
+
 function getDashboardStats() {
   refreshSlaStatuses();
   const dbConn = getDb();
@@ -823,6 +932,9 @@ module.exports = {
   getPrivateUnreadCount,
   insertPrivateMessage,
   markPrivateMessagesRead,
+  getTicketTasks,
+  updateTicketTask,
+  getCustomerContext,
   recordEvent,
   generateTicketNumber,
   closeDb,
