@@ -1,6 +1,6 @@
 const express = require('express');
 const db = require('../services/database');
-const { MACROS, buildReplyDraft } = require('../services/supportOps');
+const { MACROS, TEAM_MEMBERS, buildReplyDraft } = require('../services/supportOps');
 
 const router = express.Router();
 
@@ -22,6 +22,10 @@ router.get('/workspaces', (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+router.get('/team-members', (req, res) => {
+  res.json(TEAM_MEMBERS);
 });
 
 router.get('/reports/overview', (req, res, next) => {
